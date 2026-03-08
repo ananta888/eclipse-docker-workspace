@@ -53,7 +53,7 @@ if (-not $EclipseBuild) { $EclipseBuild = $releaseInfo.Build }
 
 $portableRoot = Join-Path $resolvedRepoRoot 'portable'
 $eclipseHome = Join-Path $portableRoot 'eclipse-win'
-$workspaceDir = Join-Path $portableRoot 'workspace'
+$workspaceDir = Join-Path $portableRoot 'workspace-win'
 $reposDir = Join-Path $portableRoot 'repos'
 $configDir = Join-Path $portableRoot 'config'
 $sharedDir = Join-Path $resolvedRepoRoot 'shared'
@@ -384,4 +384,4 @@ Write-Host "Done."
 Write-Host "Start Eclipse with: portable\\start-eclipse-win11.bat"
 Write-Host "Configured workspace: $workspaceDir"
 Write-Host "Configured repo root: $reposDir"
-Write-Host "Docker compose also maps this workspace path (via WORKSPACE_DIR default)."
+Write-Host "Windows workspace is separated from Docker workspace by default."
