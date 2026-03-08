@@ -132,6 +132,10 @@ function Import-ProjectsIntoEclipse {
     if (-not (Test-Path $reposPath)) {
         throw "Repos path not found: $reposPath"
     }
+    $workspaceLock = Join-Path $WorkspacePath ".metadata\.lock"
+    if (Test-Path $workspaceLock) {
+        throw "Workspace appears to be in use: $WorkspacePath. Please close Eclipse and retry."
+    }
 
     $projectDirs = Get-ChildItem -Path $reposPath -Recurse -File -Filter ".project" -ErrorAction SilentlyContinue |
         ForEach-Object { $_.Directory.FullName } |
@@ -154,6 +158,14 @@ function Import-ProjectsIntoEclipse {
     foreach ($projectDir in $projectDirs) {
         $importArgs += @("-import", $projectDir)
     }
+    $importArgs += @(
+        "-vmargs"
+        "--add-opens=java.base/java.util=ALL-UNNAMED"
+        "--add-opens=java.base/java.lang=ALL-UNNAMED"
+        "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED"
+        "--add-opens=java.base/java.text=ALL-UNNAMED"
+        "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
+    )
 
     # Use Start-Process so Eclipse stderr log lines do not get promoted to terminating PowerShell errors.
     $proc = Start-Process -FilePath $eclipseExe -ArgumentList $importArgs -NoNewWindow -Wait -PassThru
