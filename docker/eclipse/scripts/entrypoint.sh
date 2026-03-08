@@ -9,7 +9,7 @@ HOST_DISPLAY=${HOST_DISPLAY:-host.docker.internal:0.0}
 ECLIPSE_WORKSPACE=${ECLIPSE_WORKSPACE:-/home/developer/workspace}
 ECLIPSE_SHARED=${ECLIPSE_SHARED:-/shared}
 ECLIPSE_BACKUP=${ECLIPSE_BACKUP:-/backup}
-ECLIPSE_VM_OPENS=${ECLIPSE_VM_OPENS:---add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED}
+ECLIPSE_VM_OPENS=${ECLIPSE_VM_OPENS:---add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.text=ALL-UNNAMED}
 
 DEVELOPER_USER=${DEVELOPER_USER:-developer}
 DEVELOPER_HOME=${DEVELOPER_HOME:-/home/${DEVELOPER_USER}}
