@@ -62,33 +62,45 @@ $launchDstDir = Join-Path $workspaceDir '.launches'
 
 $package = "eclipse-java-$EclipseVersion-$EclipseBuild-win32-x86_64.zip"
 $downloadUrl = "https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/$EclipseVersion/$EclipseBuild/$package&r=1"
-$tempZip = Join-Path $env:TEMP $package
+$cacheDir = Join-Path $portableRoot 'cache'
+$cachedZip = Join-Path $cacheDir $package
 
 Write-Host "Repo root: $resolvedRepoRoot"
 Write-Host "Eclipse release: $EclipseVersion/$EclipseBuild"
 Write-Host "Download URL: $downloadUrl"
 
-New-Item -ItemType Directory -Force -Path $portableRoot, $workspaceDir, $configDir | Out-Null
-
-if (Test-Path $eclipseHome) {
-    Remove-Item -Recurse -Force $eclipseHome
-}
-
-Write-Host "Downloading Eclipse package..."
-Invoke-WebRequest -Uri $downloadUrl -OutFile $tempZip
-
-Write-Host "Extracting Eclipse..."
-Expand-Archive -Path $tempZip -DestinationPath $portableRoot -Force
-
-$extractedDir = Join-Path $portableRoot 'eclipse'
-if (-not (Test-Path $extractedDir)) {
-    throw "Expected extracted directory not found: $extractedDir"
-}
-
-Move-Item -Force -Path $extractedDir -Destination $eclipseHome
-Remove-Item -Force $tempZip
+New-Item -ItemType Directory -Force -Path $portableRoot, $workspaceDir, $configDir, $cacheDir | Out-Null
 
 $eclipseExe = Join-Path $eclipseHome 'eclipse.exe'
+$hasExistingInstall = Test-Path $eclipseExe
+if ($hasExistingInstall) {
+    Write-Host "Existing Eclipse installation found ($eclipseExe). Skipping download/extract."
+}
+
+if (-not $hasExistingInstall) {
+    if (-not (Test-Path $cachedZip)) {
+        Write-Host "Downloading Eclipse package..."
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $cachedZip
+    }
+    else {
+        Write-Host "Using cached Eclipse package: $cachedZip"
+    }
+
+    if (Test-Path $eclipseHome) {
+        Remove-Item -Recurse -Force $eclipseHome
+    }
+
+    Write-Host "Extracting Eclipse..."
+    Expand-Archive -Path $cachedZip -DestinationPath $portableRoot -Force
+
+    $extractedDir = Join-Path $portableRoot 'eclipse'
+    if (-not (Test-Path $extractedDir)) {
+        throw "Expected extracted directory not found: $extractedDir"
+    }
+
+    Move-Item -Force -Path $extractedDir -Destination $eclipseHome
+}
+
 if (-not (Test-Path $eclipseExe)) {
     throw "Eclipse executable not found: $eclipseExe"
 }
