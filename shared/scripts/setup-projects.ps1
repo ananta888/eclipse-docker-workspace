@@ -169,14 +169,17 @@ function Import-ProjectsIntoEclipse {
         throw "Workspace appears to be in use: $WorkspacePath. Please close Eclipse and retry."
     }
 
-    $repoRoots = Get-ChildItem -Path $reposPath -Directory -ErrorAction SilentlyContinue |
-        ForEach-Object { $_.FullName } |
+    $projectDirs = Get-ChildItem -Path $reposPath -Recurse -File -Filter ".project" -ErrorAction SilentlyContinue |
+        ForEach-Object { $_.Directory.FullName } |
         Sort-Object -Unique
 
-    if (-not $repoRoots -or $repoRoots.Count -eq 0) {
-        Write-Warning "No repository roots found under $reposPath. Nothing to import."
+    if (-not $projectDirs -or $projectDirs.Count -eq 0) {
+        Write-Warning "No .project files found under $reposPath. Nothing to import."
         return
     }
+
+    $eclipsecExe = Join-Path $RepoRootPath "portable\eclipse-win\eclipsec.exe"
+    $launcherExe = if (Test-Path $eclipsecExe) { $eclipsecExe } else { $eclipseExe }
 
     $projectsStorePath = Join-Path $WorkspacePath ".metadata\.plugins\org.eclipse.core.resources\.projects"
     $countImportedProjects = {
@@ -188,19 +191,24 @@ function Import-ProjectsIntoEclipse {
     }
 
     $beforeCount = & $countImportedProjects
-    Write-Host "Importing projects from $($repoRoots.Count) repo roots into workspace $WorkspacePath (before: $beforeCount)"
+    Write-Host "Importing $($projectDirs.Count) projects into workspace $WorkspacePath (before: $beforeCount)"
 
-    foreach ($repoRoot in $repoRoots) {
-        Write-Host "  -> importAll from $repoRoot"
+    $batchSize = 20
+    for ($i = 0; $i -lt $projectDirs.Count; $i += $batchSize) {
+        $upper = [Math]::Min($i + $batchSize - 1, $projectDirs.Count - 1)
+        $batch = @($projectDirs[$i..$upper])
+        Write-Host "  -> batch $($i + 1)-$($upper + 1)"
+
         $importArgs = @(
             "-nosplash"
             "-consoleLog"
-            "-application"
-            "org.eclipse.ui.ide.workbench"
             "-data"
             $WorkspacePath
-            "-importAll"
-            $repoRoot
+        )
+        foreach ($projectDir in $batch) {
+            $importArgs += @("-import", $projectDir)
+        }
+        $importArgs += @(
             "-vmargs"
             "--add-opens=java.base/java.util=ALL-UNNAMED"
             "--add-opens=java.base/java.lang=ALL-UNNAMED"
@@ -209,9 +217,9 @@ function Import-ProjectsIntoEclipse {
             "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
         )
 
-        $proc = Start-Process -FilePath $eclipseExe -ArgumentList $importArgs -NoNewWindow -Wait -PassThru
+        $proc = Start-Process -FilePath $launcherExe -ArgumentList $importArgs -NoNewWindow -Wait -PassThru
         if ($proc.ExitCode -ne 0) {
-            throw "Eclipse project import failed for '$repoRoot' with exit code $($proc.ExitCode)"
+            throw "Eclipse project import failed in batch starting at index $i with exit code $($proc.ExitCode)"
         }
     }
 
