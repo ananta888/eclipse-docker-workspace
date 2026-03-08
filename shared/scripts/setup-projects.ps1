@@ -169,12 +169,12 @@ function Import-ProjectsIntoEclipse {
         throw "Workspace appears to be in use: $WorkspacePath. Please close Eclipse and retry."
     }
 
-    $projectDirs = Get-ChildItem -Path $reposPath -Recurse -File -Filter ".project" -ErrorAction SilentlyContinue |
-        ForEach-Object { $_.Directory.FullName } |
+    $repoRoots = Get-ChildItem -Path $reposPath -Directory -ErrorAction SilentlyContinue |
+        ForEach-Object { $_.FullName } |
         Sort-Object -Unique
 
-    if (-not $projectDirs -or $projectDirs.Count -eq 0) {
-        Write-Warning "No .project files found under $reposPath. Nothing to import."
+    if (-not $repoRoots -or $repoRoots.Count -eq 0) {
+        Write-Warning "No repository roots found under $reposPath. Nothing to import."
         return
     }
 
@@ -188,31 +188,31 @@ function Import-ProjectsIntoEclipse {
     }
 
     $beforeCount = & $countImportedProjects
-    Write-Host "Importing $($projectDirs.Count) Eclipse projects into workspace $WorkspacePath (before: $beforeCount)"
+    Write-Host "Importing projects from $($repoRoots.Count) repo roots into workspace $WorkspacePath (before: $beforeCount)"
 
-    $importArgs = @(
-        "-nosplash"
-        "-consoleLog"
-        "-application"
-        "org.eclipse.ui.ide.workbench"
-        "-data"
-        $WorkspacePath
-    )
-    foreach ($projectDir in $projectDirs) {
-        $importArgs += @("-import", $projectDir)
-    }
-    $importArgs += @(
-        "-vmargs"
-        "--add-opens=java.base/java.util=ALL-UNNAMED"
-        "--add-opens=java.base/java.lang=ALL-UNNAMED"
-        "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED"
-        "--add-opens=java.base/java.text=ALL-UNNAMED"
-        "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
-    )
+    foreach ($repoRoot in $repoRoots) {
+        Write-Host "  -> importAll from $repoRoot"
+        $importArgs = @(
+            "-nosplash"
+            "-consoleLog"
+            "-application"
+            "org.eclipse.ui.ide.workbench"
+            "-data"
+            $WorkspacePath
+            "-importAll"
+            $repoRoot
+            "-vmargs"
+            "--add-opens=java.base/java.util=ALL-UNNAMED"
+            "--add-opens=java.base/java.lang=ALL-UNNAMED"
+            "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED"
+            "--add-opens=java.base/java.text=ALL-UNNAMED"
+            "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
+        )
 
-    $proc = Start-Process -FilePath $eclipseExe -ArgumentList $importArgs -NoNewWindow -Wait -PassThru
-    if ($proc.ExitCode -ne 0) {
-        throw "Eclipse project import failed with exit code $($proc.ExitCode)"
+        $proc = Start-Process -FilePath $eclipseExe -ArgumentList $importArgs -NoNewWindow -Wait -PassThru
+        if ($proc.ExitCode -ne 0) {
+            throw "Eclipse project import failed for '$repoRoot' with exit code $($proc.ExitCode)"
+        }
     }
 
     $afterCount = & $countImportedProjects
