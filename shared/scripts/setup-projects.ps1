@@ -191,8 +191,9 @@ function Import-ProjectsIntoEclipse {
         $hasCdtHeadlessPlugin = [bool](Get-ChildItem -Path $pluginsDir -Filter "org.eclipse.cdt.managedbuilder.core_*" -ErrorAction SilentlyContinue)
     }
 
-    if (-not ($hasCdtFeature -or $hasCdtHeadlessPlugin)) {
-        throw "Missing Eclipse CDT feature (org.eclipse.cdt.feature.group). Re-run shared\scripts\bootstrap-portable-eclipse-win11.ps1 so headless project import can work."
+    $useHeadlessImport = ($hasCdtFeature -or $hasCdtHeadlessPlugin)
+    if (-not $useHeadlessImport) {
+        Write-Warning "CDT headless importer not found. Falling back to standard Eclipse -import mode."
     }
 
     $eclipsecExe = Join-Path $RepoRootPath "portable\eclipse-win\eclipsec.exe"
@@ -208,46 +209,80 @@ function Import-ProjectsIntoEclipse {
     }
 
     $beforeCount = & $countImportedProjects
-    Write-Host "Importing $($projectDirs.Count) projects into workspace $WorkspacePath via headless importer (before: $beforeCount)"
+    if ($useHeadlessImport) {
+        Write-Host "Importing $($projectDirs.Count) projects into workspace $WorkspacePath via headless importer (before: $beforeCount)"
 
-    $timeoutSeconds = 40
-    $headlessApp = "org.eclipse.cdt.managedbuilder.core.headlessbuild"
+        $timeoutSeconds = 40
+        $headlessApp = "org.eclipse.cdt.managedbuilder.core.headlessbuild"
 
-    for ($i = 0; $i -lt $projectDirs.Count; $i++) {
-        $projectDir = $projectDirs[$i]
-        Write-Host ("  -> {0}/{1}: {2}" -f ($i + 1), $projectDirs.Count, $projectDir)
+        for ($i = 0; $i -lt $projectDirs.Count; $i++) {
+            $projectDir = $projectDirs[$i]
+            Write-Host ("  -> {0}/{1}: {2}" -f ($i + 1), $projectDirs.Count, $projectDir)
 
-        $importArgs = @(
-            "-nosplash"
-            "-consoleLog"
-            "-application"
-            $headlessApp
-            "-data"
-            $WorkspacePath
-            "-import"
-            $projectDir
-            "-vmargs"
-            "--add-opens=java.base/java.util=ALL-UNNAMED"
-            "--add-opens=java.base/java.lang=ALL-UNNAMED"
-            "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED"
-            "--add-opens=java.base/java.text=ALL-UNNAMED"
-            "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
-        )
+            $importArgs = @(
+                "-nosplash"
+                "-consoleLog"
+                "-application"
+                $headlessApp
+                "-data"
+                $WorkspacePath
+                "-import"
+                $projectDir
+                "-vmargs"
+                "--add-opens=java.base/java.util=ALL-UNNAMED"
+                "--add-opens=java.base/java.lang=ALL-UNNAMED"
+                "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED"
+                "--add-opens=java.base/java.text=ALL-UNNAMED"
+                "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
+            )
 
-        $proc = Start-Process -FilePath $launcherExe -ArgumentList $importArgs -NoNewWindow -PassThru
-        $timedOut = $false
-        try {
-            Wait-Process -Id $proc.Id -Timeout $timeoutSeconds -ErrorAction Stop
-        }
-        catch {
-            $timedOut = $true
-            if (-not $proc.HasExited) {
-                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            $proc = Start-Process -FilePath $launcherExe -ArgumentList $importArgs -NoNewWindow -PassThru
+            $timedOut = $false
+            try {
+                Wait-Process -Id $proc.Id -Timeout $timeoutSeconds -ErrorAction Stop
+            }
+            catch {
+                $timedOut = $true
+                if (-not $proc.HasExited) {
+                    Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+                }
+            }
+
+            if (-not $timedOut -and $proc.ExitCode -ne 0) {
+                throw "Headless import failed for $projectDir with exit code $($proc.ExitCode)"
             }
         }
+    }
+    else {
+        Write-Host "Importing $($projectDirs.Count) projects into workspace $WorkspacePath via standard -import mode (before: $beforeCount)"
+        $batchSize = 20
+        for ($i = 0; $i -lt $projectDirs.Count; $i += $batchSize) {
+            $upper = [Math]::Min($i + $batchSize - 1, $projectDirs.Count - 1)
+            $batch = @($projectDirs[$i..$upper])
+            Write-Host "  -> batch $($i + 1)-$($upper + 1)"
 
-        if (-not $timedOut -and $proc.ExitCode -ne 0) {
-            throw "Headless import failed for $projectDir with exit code $($proc.ExitCode)"
+            $importArgs = @(
+                "-nosplash"
+                "-consoleLog"
+                "-data"
+                $WorkspacePath
+            )
+            foreach ($projectDir in $batch) {
+                $importArgs += @("-import", $projectDir)
+            }
+            $importArgs += @(
+                "-vmargs"
+                "--add-opens=java.base/java.util=ALL-UNNAMED"
+                "--add-opens=java.base/java.lang=ALL-UNNAMED"
+                "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED"
+                "--add-opens=java.base/java.text=ALL-UNNAMED"
+                "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
+            )
+
+            $proc = Start-Process -FilePath $launcherExe -ArgumentList $importArgs -NoNewWindow -Wait -PassThru
+            if ($proc.ExitCode -ne 0) {
+                throw "Eclipse project import failed in batch starting at index $i with exit code $($proc.ExitCode)"
+            }
         }
     }
 
