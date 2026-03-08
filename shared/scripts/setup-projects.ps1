@@ -178,6 +178,11 @@ function Import-ProjectsIntoEclipse {
         return
     }
 
+    $cdtFeature = Get-ChildItem -Path (Join-Path $RepoRootPath "portable\eclipse-win\features") -Filter "org.eclipse.cdt.feature_*" -ErrorAction SilentlyContinue
+    if (-not $cdtFeature) {
+        throw "Missing Eclipse CDT feature (org.eclipse.cdt.feature.group). Re-run shared\scripts\bootstrap-portable-eclipse-win11.ps1 so headless project import can work."
+    }
+
     $eclipsecExe = Join-Path $RepoRootPath "portable\eclipse-win\eclipsec.exe"
     $launcherExe = if (Test-Path $eclipsecExe) { $eclipsecExe } else { $eclipseExe }
 
@@ -191,24 +196,24 @@ function Import-ProjectsIntoEclipse {
     }
 
     $beforeCount = & $countImportedProjects
-    Write-Host "Importing $($projectDirs.Count) projects into workspace $WorkspacePath (before: $beforeCount)"
+    Write-Host "Importing $($projectDirs.Count) projects into workspace $WorkspacePath via headless importer (before: $beforeCount)"
 
-    $batchSize = 20
-    for ($i = 0; $i -lt $projectDirs.Count; $i += $batchSize) {
-        $upper = [Math]::Min($i + $batchSize - 1, $projectDirs.Count - 1)
-        $batch = @($projectDirs[$i..$upper])
-        Write-Host "  -> batch $($i + 1)-$($upper + 1)"
+    $timeoutSeconds = 40
+    $headlessApp = "org.eclipse.cdt.managedbuilder.core.headlessbuild"
+
+    for ($i = 0; $i -lt $projectDirs.Count; $i++) {
+        $projectDir = $projectDirs[$i]
+        Write-Host ("  -> {0}/{1}: {2}" -f ($i + 1), $projectDirs.Count, $projectDir)
 
         $importArgs = @(
             "-nosplash"
             "-consoleLog"
+            "-application"
+            $headlessApp
             "-data"
             $WorkspacePath
-        )
-        foreach ($projectDir in $batch) {
-            $importArgs += @("-import", $projectDir)
-        }
-        $importArgs += @(
+            "-import"
+            $projectDir
             "-vmargs"
             "--add-opens=java.base/java.util=ALL-UNNAMED"
             "--add-opens=java.base/java.lang=ALL-UNNAMED"
@@ -217,9 +222,20 @@ function Import-ProjectsIntoEclipse {
             "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
         )
 
-        $proc = Start-Process -FilePath $launcherExe -ArgumentList $importArgs -NoNewWindow -Wait -PassThru
-        if ($proc.ExitCode -ne 0) {
-            throw "Eclipse project import failed in batch starting at index $i with exit code $($proc.ExitCode)"
+        $proc = Start-Process -FilePath $launcherExe -ArgumentList $importArgs -NoNewWindow -PassThru
+        $timedOut = $false
+        try {
+            Wait-Process -Id $proc.Id -Timeout $timeoutSeconds -ErrorAction Stop
+        }
+        catch {
+            $timedOut = $true
+            if (-not $proc.HasExited) {
+                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        if (-not $timedOut -and $proc.ExitCode -ne 0) {
+            throw "Headless import failed for $projectDir with exit code $($proc.ExitCode)"
         }
     }
 
