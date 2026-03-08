@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     tzdata \
     rsync \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -ms /bin/bash developer
@@ -39,7 +40,6 @@ COPY docker/eclipse/scripts/restore-config.sh /usr/local/bin/restore-config.sh
 
 RUN chmod +x /entrypoint.sh /usr/local/bin/backup-config.sh /usr/local/bin/restore-config.sh
 
-USER developer
 WORKDIR /home/developer
 
 EXPOSE 6080
