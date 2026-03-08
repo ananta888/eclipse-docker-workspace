@@ -59,23 +59,57 @@ function Add-ManifestEntry {
 function Invoke-GradleEclipse {
     param([string]$RepoPath)
 
-    $gradlew = Join-Path $RepoPath "gradlew.bat"
-    $gradlewSh = Join-Path $RepoPath "gradlew"
+    $searchDirs = New-Object System.Collections.Generic.List[string]
+    $searchDirs.Add($RepoPath) | Out-Null
+    foreach ($dir in Get-ChildItem -Path $RepoPath -Directory -ErrorAction SilentlyContinue) {
+        $searchDirs.Add($dir.FullName) | Out-Null
+    }
 
-    if (Test-Path $gradlew) {
-        Write-Host "Generating Eclipse metadata via gradlew.bat in $RepoPath"
-        & $gradlew "-q" "eclipse"
+    $gradlew = $null
+    $gradlewSh = $null
+    $workingDir = $null
+
+    foreach ($dir in $searchDirs) {
+        $candidateBat = Join-Path $dir "gradlew.bat"
+        $candidateSh = Join-Path $dir "gradlew"
+        if (Test-Path $candidateBat) {
+            $gradlew = $candidateBat
+            $workingDir = $dir
+            break
+        }
+        if (Test-Path $candidateSh) {
+            $gradlewSh = $candidateSh
+            $workingDir = $dir
+            break
+        }
+    }
+
+    if ($gradlew) {
+        Write-Host "Generating Eclipse metadata via gradlew.bat in $workingDir"
+        Push-Location $workingDir
+        try {
+            & $gradlew "-q" "eclipse"
+        }
+        finally {
+            Pop-Location
+        }
         if ($LASTEXITCODE -ne 0) {
-            throw "gradlew.bat eclipse failed in $RepoPath"
+            throw "gradlew.bat eclipse failed in $workingDir"
         }
         return
     }
 
-    if (Test-Path $gradlewSh) {
-        Write-Host "Generating Eclipse metadata via gradlew in $RepoPath"
-        & bash $gradlewSh "-q" "eclipse"
+    if ($gradlewSh) {
+        Write-Host "Generating Eclipse metadata via gradlew in $workingDir"
+        Push-Location $workingDir
+        try {
+            & bash $gradlewSh "-q" "eclipse"
+        }
+        finally {
+            Pop-Location
+        }
         if ($LASTEXITCODE -ne 0) {
-            throw "gradlew eclipse failed in $RepoPath"
+            throw "gradlew eclipse failed in $workingDir"
         }
         return
     }
@@ -99,17 +133,32 @@ function Import-ProjectsIntoEclipse {
         throw "Repos path not found: $reposPath"
     }
 
-    Write-Host "Importing Eclipse projects from $reposPath into workspace $WorkspacePath"
+    $projectDirs = Get-ChildItem -Path $reposPath -Recurse -File -Filter ".project" -ErrorAction SilentlyContinue |
+        ForEach-Object { $_.Directory.FullName } |
+        Sort-Object -Unique
+
+    if (-not $projectDirs -or $projectDirs.Count -eq 0) {
+        Write-Warning "No .project files found under $reposPath. Nothing to import."
+        return
+    }
+
+    Write-Host "Importing $($projectDirs.Count) Eclipse projects into workspace $WorkspacePath"
     $importArgs = @(
-        "-nosplash",
-        "-consoleLog",
-        "-application", "org.eclipse.ui.ide.workbench",
-        "-data", $WorkspacePath,
-        "-importAll", $reposPath
+        "-nosplash"
+        "-consoleLog"
+        "-application"
+        "org.eclipse.ui.ide.workbench"
+        "-data"
+        $WorkspacePath
     )
-    & $eclipseExe @importArgs 2>&1 | Out-Host
-    if ($LASTEXITCODE -ne 0) {
-        throw "Eclipse importAll failed with exit code $LASTEXITCODE"
+    foreach ($projectDir in $projectDirs) {
+        $importArgs += @("-import", $projectDir)
+    }
+
+    # Use Start-Process so Eclipse stderr log lines do not get promoted to terminating PowerShell errors.
+    $proc = Start-Process -FilePath $eclipseExe -ArgumentList $importArgs -NoNewWindow -Wait -PassThru
+    if ($proc.ExitCode -ne 0) {
+        throw "Eclipse project import failed with exit code $($proc.ExitCode)"
     }
 }
 
