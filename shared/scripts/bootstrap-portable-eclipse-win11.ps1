@@ -139,6 +139,9 @@ if (-not $SkipPluginInstall) {
     }
 
     Write-Host "Installing plugins from shared/p2/plugins.txt..."
+    $pluginReposByIU = @{}
+    $pluginOrder = New-Object System.Collections.Generic.List[string]
+
     foreach ($line in Get-Content $pluginsFile) {
         $trimmed = $line.Trim()
         if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
@@ -152,22 +155,46 @@ if (-not $SkipPluginInstall) {
         if (-not $repo -or -not $iu) { continue }
         $repo = $repo.Replace('${ECLIPSE_VERSION}', $EclipseVersion).Replace('$ECLIPSE_VERSION', $EclipseVersion)
 
-        Write-Host "  -> $iu (repo: $repo)"
-        $directorArgs = @(
-            '-nosplash',
-            '-application', 'org.eclipse.equinox.p2.director',
-            '-repository', $repo,
-            '-installIU', $iu,
-            '-profile', 'SDKProfile',
-            '-destination', $eclipseHome,
-            '-bundlepool', $eclipseHome,
-            '-roaming'
-        )
-        $directorOutput = & $eclipseExe @directorArgs 2>&1
+        if (-not $pluginReposByIU.ContainsKey($iu)) {
+            $pluginReposByIU[$iu] = New-Object System.Collections.Generic.List[string]
+            $pluginOrder.Add($iu) | Out-Null
+        }
+        if (-not $pluginReposByIU[$iu].Contains($repo)) {
+            $pluginReposByIU[$iu].Add($repo) | Out-Null
+        }
+    }
 
-        if ($LASTEXITCODE -ne 0) {
+    foreach ($iu in $pluginOrder) {
+        $installed = $false
+        $attemptFailures = New-Object System.Collections.Generic.List[string]
+
+        foreach ($repo in $pluginReposByIU[$iu]) {
+            Write-Host "  -> $iu (repo: $repo)"
+            $directorArgs = @(
+                '-nosplash',
+                '-application', 'org.eclipse.equinox.p2.director',
+                '-repository', $repo,
+                '-installIU', $iu,
+                '-profile', 'SDKProfile',
+                '-destination', $eclipseHome,
+                '-bundlepool', $eclipseHome,
+                '-roaming'
+            )
+            $directorOutput = & $eclipseExe @directorArgs 2>&1
+
+            if ($LASTEXITCODE -eq 0) {
+                $installed = $true
+                break
+            }
+
             $details = ($directorOutput | Out-String).Trim()
-            throw "Plugin installation failed for IU: $iu`nRepository: $repo`nDetails:`n$details"
+            $attemptFailures.Add("Repository: $repo`n$details") | Out-Null
+            Write-Warning "Plugin install attempt failed for IU '$iu' from repo '$repo'. Trying next configured repo (if any)."
+        }
+
+        if (-not $installed) {
+            $failureDetails = ($attemptFailures -join "`n`n---`n`n")
+            throw "Plugin installation failed for IU: $iu`nAttempted repositories:`n$failureDetails"
         }
     }
 }
