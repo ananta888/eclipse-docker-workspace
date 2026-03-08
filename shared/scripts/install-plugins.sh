@@ -5,7 +5,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "${SCRIPT_DIR}/../.." && pwd)
 PLUGINS_FILE=${PLUGINS_FILE:-${REPO_ROOT}/shared/p2/plugins.txt}
 ECLIPSE_HOME=${ECLIPSE_HOME:-${REPO_ROOT}/portable/eclipse}
-P2_PROFILE=${P2_PROFILE:-SDKProfile}
+P2_PROFILE=${P2_PROFILE:-epp.package.java}
 
 if [ ! -x "${ECLIPSE_HOME}/eclipse" ]; then
   echo "Eclipse binary not found: ${ECLIPSE_HOME}/eclipse" >&2

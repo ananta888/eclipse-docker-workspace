@@ -60,12 +60,20 @@ $prefsFile = Join-Path $sharedDir 'prefs\eclipse.epf'
 $pluginsFile = Join-Path $sharedDir 'p2\plugins.txt'
 $launchSrcDir = Join-Path $sharedDir 'launch'
 $launchDstDir = Join-Path $workspaceDir '.launches'
+$p2Profile = 'epp.package.java'
+$requiredSarosVmOpens = @(
+    '--add-opens=java.base/java.util=ALL-UNNAMED',
+    '--add-opens=java.base/java.lang=ALL-UNNAMED',
+    '--add-opens=java.base/java.lang.reflect=ALL-UNNAMED',
+    '--add-opens=java.base/java.text=ALL-UNNAMED',
+    '--add-opens=java.desktop/java.awt.font=ALL-UNNAMED'
+)
 
 $package = "eclipse-java-$EclipseVersion-$EclipseBuild-win32-x86_64.zip"
 $downloadUrl = "https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/$EclipseVersion/$EclipseBuild/$package&r=1"
 $cacheDir = Join-Path $portableRoot 'cache'
 $cachedZip = Join-Path $cacheDir $package
-$scriptVersion = "bootstrap-portable-eclipse-win11.ps1 fallback-v4 2026-03-08"
+$scriptVersion = "bootstrap-portable-eclipse-win11.ps1 fallback-v5 2026-03-08"
 
 function Get-LatestP2LogSnippet {
     param(
@@ -132,6 +140,55 @@ function Test-FeatureIUInstalled {
     return [bool]$matches
 }
 
+function Ensure-EclipseIniVmArgs {
+    param(
+        [string]$EclipseIniPath,
+        [string[]]$RequiredVmArgs
+    )
+
+    if (-not (Test-Path $EclipseIniPath)) {
+        Write-Warning "eclipse.ini not found: $EclipseIniPath"
+        return
+    }
+
+    $lines = Get-Content -Path $EclipseIniPath
+    if (-not $lines) {
+        Write-Warning "eclipse.ini is empty: $EclipseIniPath"
+        return
+    }
+
+    $vmargsIndex = [Array]::IndexOf($lines, '-vmargs')
+    if ($vmargsIndex -lt 0) {
+        Write-Warning "No -vmargs section found in eclipse.ini: $EclipseIniPath"
+        return
+    }
+
+    $vmargLines = @()
+    if ($vmargsIndex + 1 -le $lines.Count - 1) {
+        $vmargLines = @($lines[($vmargsIndex + 1)..($lines.Count - 1)])
+    }
+
+    $missing = New-Object System.Collections.Generic.List[string]
+    foreach ($arg in $RequiredVmArgs) {
+        if (-not ($vmargLines -contains $arg)) {
+            $missing.Add($arg) | Out-Null
+        }
+    }
+
+    if ($missing.Count -eq 0) {
+        Write-Host "Saros Java module opens already present in eclipse.ini."
+        return
+    }
+
+    $head = @($lines[0..$vmargsIndex])
+    $updated = $head + $vmargLines + @($missing.ToArray())
+    Set-Content -Path $EclipseIniPath -Value $updated -Encoding UTF8
+    Write-Host "Added Saros Java module opens to eclipse.ini:"
+    foreach ($arg in $missing) {
+        Write-Host "  $arg"
+    }
+}
+
 Write-Host "Repo root: $resolvedRepoRoot"
 Write-Host "Script version: $scriptVersion"
 Write-Host "Eclipse release: $EclipseVersion/$EclipseBuild"
@@ -188,6 +245,9 @@ if (-not $hasExistingInstall) {
 if (-not (Test-Path $eclipseExe)) {
     throw "Eclipse executable not found: $eclipseExe"
 }
+
+$eclipseIniPath = Join-Path $eclipseHome 'eclipse.ini'
+Ensure-EclipseIniVmArgs -EclipseIniPath $eclipseIniPath -RequiredVmArgs $requiredSarosVmOpens
 
 Write-Host "Copying shared configuration snapshot..."
 $sharedConfigTarget = Join-Path $configDir 'shared'
@@ -249,7 +309,7 @@ if (-not $SkipPluginInstall) {
                 '-application', 'org.eclipse.equinox.p2.director',
                 '-repository', $repo,
                 '-installIU', $iu,
-                '-profile', 'SDKProfile',
+                '-profile', $p2Profile,
                 '-destination', $eclipseHome,
                 '-bundlepool', $eclipseHome,
                 '-roaming'

@@ -171,6 +171,31 @@ Troubleshooting (Java 21 / Saros):
      `--add-opens=java.base/java.text=ALL-UNNAMED`
      `--add-opens=java.desktop/java.awt.font=ALL-UNNAMED`
 
+### Remote Pair-Development mit Saros (Portable Eclipse unter Windows)
+
+Die portable Variante installiert Saros ebenfalls deklarativ aus `shared/p2/plugins.txt`.
+Der Bootstrap setzt zudem die noetigen Java-21-VM-Args in `portable/eclipse-win/eclipse.ini`, damit Saros ohne `InaccessibleObjectException` startet.
+
+Neuinstallation oder bestehende Installation reparieren:
+
+```powershell
+shared\scripts\bootstrap-portable-eclipse-win11.ps1
+```
+
+Das Skript:
+
+- installiert fehlende Plugins (inkl. `saros.feature.feature.group`)
+- verwendet dafuer das Eclipse-Profil `epp.package.java`
+- ergaenzt fehlende `--add-opens`-Eintraege in `portable/eclipse-win/eclipse.ini`
+
+Pruefen:
+
+```powershell
+Select-String -Path "portable\eclipse-win\eclipse.ini" -Pattern "--add-opens=java.base/java.util=ALL-UNNAMED","--add-opens=java.base/java.lang=ALL-UNNAMED","--add-opens=java.base/java.lang.reflect=ALL-UNNAMED","--add-opens=java.base/java.text=ALL-UNNAMED","--add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
+```
+
+Danach Eclipse neu starten und pruefen: `Window -> Show View -> Other... -> Saros`.
+
 ### Plugins deklarativ installieren
 
 ```bash
