@@ -5,7 +5,7 @@ ENV TZ=Europe/Berlin
 ENV ECLIPSE_VERSION=2025-12
 ENV ECLIPSE_BUILD=R
 ENV ECLIPSE_PACKAGE=eclipse-java-${ECLIPSE_VERSION}-${ECLIPSE_BUILD}-linux-gtk-x86_64.tar.gz
-ENV ECLIPSE_URL=https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/${ECLIPSE_VERSION}/${ECLIPSE_BUILD}/${ECLIPSE_PACKAGE}\&r=1
+ENV ECLIPSE_URL=https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/${ECLIPSE_VERSION}/${ECLIPSE_BUILD}/${ECLIPSE_PACKAGE}&r=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openjdk-21-jdk \
@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN useradd -ms /bin/bash developer
 
 WORKDIR /opt
-RUN wget --max-redirect=20 -O /tmp/eclipse.tar.gz "${ECLIPSE_URL}" \
+RUN wget --max-redirect=20 -O /tmp/eclipse.tar.gz "$ECLIPSE_URL" \
     && tar -xzf /tmp/eclipse.tar.gz -C /opt \
     && rm /tmp/eclipse.tar.gz \
     && ln -s /opt/eclipse/eclipse /usr/local/bin/eclipse
