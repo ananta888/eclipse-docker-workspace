@@ -122,20 +122,24 @@ if (-not $SkipPluginInstall) {
         $repo = $parts[0].Trim()
         $iu = $parts[1].Trim()
         if (-not $repo -or -not $iu) { continue }
+        $repo = $repo.Replace('${ECLIPSE_VERSION}', $EclipseVersion).Replace('$ECLIPSE_VERSION', $EclipseVersion)
 
-        Write-Host "  -> $iu"
-        & $eclipseExe `
-            -nosplash `
-            -application org.eclipse.equinox.p2.director `
-            -repository $repo `
-            -installIU $iu `
-            -profile SDKProfile `
-            -destination $eclipseHome `
-            -bundlepool $eclipseHome `
-            -roaming
+        Write-Host "  -> $iu (repo: $repo)"
+        $directorArgs = @(
+            '-nosplash',
+            '-application', 'org.eclipse.equinox.p2.director',
+            '-repository', $repo,
+            '-installIU', $iu,
+            '-profile', 'SDKProfile',
+            '-destination', $eclipseHome,
+            '-bundlepool', $eclipseHome,
+            '-roaming'
+        )
+        $directorOutput = & $eclipseExe @directorArgs 2>&1
 
         if ($LASTEXITCODE -ne 0) {
-            throw "Plugin installation failed for IU: $iu"
+            $details = ($directorOutput | Out-String).Trim()
+            throw "Plugin installation failed for IU: $iu`nRepository: $repo`nDetails:`n$details"
         }
     }
 }
