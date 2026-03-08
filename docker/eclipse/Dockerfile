@@ -37,6 +37,15 @@ RUN wget --max-redirect=20 -O /tmp/eclipse.tar.gz "$ECLIPSE_URL" \
     && rm /tmp/eclipse.tar.gz \
     && ln -s /opt/eclipse/eclipse /usr/local/bin/eclipse
 
+RUN /opt/eclipse/eclipse -nosplash \
+    -application org.eclipse.equinox.p2.director \
+    -repository "https://www.saros-project.org/update-site/eclipse,https://download.eclipse.org/releases/${ECLIPSE_VERSION}" \
+    -installIU "saros.feature.feature.group" \
+    -profile SDKProfile \
+    -destination /opt/eclipse \
+    -bundlepool /opt/eclipse \
+    -roaming
+
 COPY docker/eclipse/scripts/entrypoint.sh /entrypoint.sh
 COPY docker/eclipse/scripts/backup-config.sh /usr/local/bin/backup-config.sh
 COPY docker/eclipse/scripts/restore-config.sh /usr/local/bin/restore-config.sh

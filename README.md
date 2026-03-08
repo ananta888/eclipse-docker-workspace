@@ -140,6 +140,23 @@ docker compose up -d --build
 Dann öffnet sich Eclipse direkt im Windows-X-Server.  
 Hinweis: In `USE_HOST_X11=1` ist noVNC absichtlich deaktiviert. X11-Forwarding und noVNC parallel sind im aktuellen Setup nicht gleichzeitig aktiv.
 
+### Remote Pair-Development mit Saros (Eclipse-Container)
+
+Saros ist als Eclipse-Plugin deklarativ eingebunden (`shared/p2/plugins.txt`) und wird beim Image-Build installiert.
+
+1. Image neu bauen und Container starten:
+
+```bash
+docker compose up -d --build
+```
+
+2. In Eclipse prüfen: `Window -> Show View -> Other... -> Saros`.
+3. Saros-Account anlegen oder anmelden.
+4. Session starten: `Saros -> Start Session`.
+5. Projekt/Freigaben auswaehlen und Partner einladen.
+
+Hinweis: Alle Teilnehmer brauchen Saros in ihrer Eclipse-Installation.
+
 ### Plugins deklarativ installieren
 
 ```bash
