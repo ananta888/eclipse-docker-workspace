@@ -24,3 +24,4 @@ gradle-app.setting
 .env
 /eclipse-data/
 /portable/workspace/
+/bootstrap.log

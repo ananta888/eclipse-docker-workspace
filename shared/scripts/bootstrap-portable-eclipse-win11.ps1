@@ -140,6 +140,11 @@ function Test-FeatureIUInstalled {
     return [bool]$matches
 }
 
+function Test-IsSarosIU {
+    param([string]$IU)
+    return $IU -eq 'saros.feature.feature.group'
+}
+
 function Ensure-EclipseIniVmArgs {
     param(
         [string]$EclipseIniPath,
@@ -293,7 +298,10 @@ if (-not $SkipPluginInstall) {
     }
 
     foreach ($iu in $pluginOrder) {
-        if (Test-FeatureIUInstalled -EclipseHome $eclipseHome -IU $iu) {
+        $alreadyInstalled = Test-FeatureIUInstalled -EclipseHome $eclipseHome -IU $iu
+
+        # Saros gets an explicit reinstall attempt to repair partial/broken installs.
+        if ((-not (Test-IsSarosIU -IU $iu)) -and $alreadyInstalled) {
             Write-Host "  -> $iu already present in local Eclipse features. Skipping install."
             continue
         }
@@ -316,14 +324,15 @@ if (-not $SkipPluginInstall) {
             )
             $directorOutput = & $eclipseExe @directorArgs 2>&1
 
-            if ($LASTEXITCODE -eq 0) {
+            $exitCode = $LASTEXITCODE
+            if ($exitCode -eq 0) {
                 $installed = $true
                 break
             }
 
             $details = ($directorOutput | Out-String).Trim()
             $p2LogSnippet = Get-LatestP2LogSnippet -EclipseHome $eclipseHome
-            $failureBlock = "Repository: $repo"
+            $failureBlock = "Repository: $repo`nExitCode: $exitCode"
             if ($details) {
                 $failureBlock += "`n$details"
             }
@@ -336,6 +345,10 @@ if (-not $SkipPluginInstall) {
 
         if (-not $installed) {
             $failureDetails = ($attemptFailures -join "`n`n---`n`n")
+            if ((Test-IsSarosIU -IU $iu) -and $alreadyInstalled) {
+                Write-Warning "Saros repair install failed, but Saros is already installed. Continuing bootstrap.`nAttempted repositories:`n$failureDetails"
+                continue
+            }
             throw "Plugin installation failed for IU: $iu`nAttempted repositories:`n$failureDetails"
         }
     }

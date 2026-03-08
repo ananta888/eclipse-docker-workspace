@@ -10,5 +10,5 @@ if not exist "%ECLIPSE_HOME%\eclipse.exe" (
   exit /b 1
 )
 
-start "" "%ECLIPSE_HOME%\eclipse.exe" -data "%WORKSPACE_DIR%"
+start "" "%ECLIPSE_HOME%\eclipse.exe" -data "%WORKSPACE_DIR%" %*
 endlocal

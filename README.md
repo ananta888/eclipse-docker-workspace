@@ -186,6 +186,7 @@ Das Skript:
 
 - installiert fehlende Plugins (inkl. `saros.feature.feature.group`)
 - verwendet dafuer das Eclipse-Profil `epp.package.java`
+- versucht Saros immer erneut zu installieren (Repair bei defekten Teilinstallationen; bei bereits installiertem Saros ist ein Update-Site-Fehler nicht fatal)
 - ergaenzt fehlende `--add-opens`-Eintraege in `portable/eclipse-win/eclipse.ini`
 
 Pruefen:
@@ -195,6 +196,12 @@ Select-String -Path "portable\eclipse-win\eclipse.ini" -Pattern "--add-opens=jav
 ```
 
 Danach Eclipse neu starten und pruefen: `Window -> Show View -> Other... -> Saros`.
+
+Falls im Error Log nur noch Saros-UI-/Icon-Fehler auftauchen (z. B. `saros_misc.png`), einmal mit bereinigtem UI-State starten:
+
+```powershell
+portable\start-eclipse-win11.bat -clean -clearPersistedState
+```
 
 ### Plugins deklarativ installieren
 
