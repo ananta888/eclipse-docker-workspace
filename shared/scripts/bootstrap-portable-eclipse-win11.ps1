@@ -72,9 +72,23 @@ Write-Host "Download URL: $downloadUrl"
 New-Item -ItemType Directory -Force -Path $portableRoot, $workspaceDir, $configDir, $cacheDir | Out-Null
 
 $eclipseExe = Join-Path $eclipseHome 'eclipse.exe'
+$extractedDir = Join-Path $portableRoot 'eclipse'
+$extractedExe = Join-Path $extractedDir 'eclipse.exe'
 $hasExistingInstall = Test-Path $eclipseExe
+$recoveryDir = "${eclipseHome}.bak-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+$recoveryHint = "Safe recovery (no delete): Move-Item -Path '$eclipseHome' -Destination '$recoveryDir'"
+
+# Early state checks before any download/extract action.
 if ($hasExistingInstall) {
     Write-Host "Existing Eclipse installation found ($eclipseExe). Skipping download/extract."
+}
+elseif (Test-Path $extractedExe) {
+    Write-Host "Found already extracted Eclipse directory ($extractedDir). Finalizing installation without download."
+    if (Test-Path $eclipseHome) {
+        throw "Target directory already exists without valid eclipse.exe: $eclipseHome`nRefusing to delete existing content automatically.`n$recoveryHint"
+    }
+    Move-Item -Force -Path $extractedDir -Destination $eclipseHome
+    $hasExistingInstall = Test-Path $eclipseExe
 }
 
 if (-not $hasExistingInstall) {
@@ -87,15 +101,17 @@ if (-not $hasExistingInstall) {
     }
 
     if (Test-Path $eclipseHome) {
-        Remove-Item -Recurse -Force $eclipseHome
+        throw "Target directory already exists without valid eclipse.exe: $eclipseHome`nRefusing to delete existing content automatically.`n$recoveryHint"
     }
 
     Write-Host "Extracting Eclipse..."
     Expand-Archive -Path $cachedZip -DestinationPath $portableRoot -Force
 
-    $extractedDir = Join-Path $portableRoot 'eclipse'
     if (-not (Test-Path $extractedDir)) {
         throw "Expected extracted directory not found: $extractedDir"
+    }
+    if (-not (Test-Path $extractedExe)) {
+        throw "Expected extracted executable not found: $extractedExe"
     }
 
     Move-Item -Force -Path $extractedDir -Destination $eclipseHome
