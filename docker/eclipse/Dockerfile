@@ -41,7 +41,7 @@ RUN /opt/eclipse/eclipse -nosplash \
     -application org.eclipse.equinox.p2.director \
     -repository "https://www.saros-project.org/update-site/eclipse,https://download.eclipse.org/releases/${ECLIPSE_VERSION}" \
     -installIU "saros.feature.feature.group" \
-    -profile SDKProfile \
+    -profile epp.package.java \
     -destination /opt/eclipse \
     -bundlepool /opt/eclipse \
     -roaming
