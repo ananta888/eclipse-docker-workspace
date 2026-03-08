@@ -200,62 +200,39 @@ generate_eclipse_metadata_for_repo() {
 }
 
 run_docker_import() {
-  local was_running=0
+  mkdir -p "${WORKSPACE_DIR}"
+  local egit_hidden="${WORKSPACE_DIR}/.metadata/.plugins/org.eclipse.core.resources/.projects/.org.eclipse.egit.core.cmp"
+  mkdir -p "${egit_hidden}"
+  local list_file="${WORKSPACE_DIR}/.eclipse-import-paths.txt"
 
-  if docker compose ps --status running --services | grep -qx "${COMPOSE_SERVICE}"; then
-    was_running=1
-    echo "Stopping running compose service '${COMPOSE_SERVICE}' for workspace import..."
-    REPOS_DIR="${REPOS_DIR}" WORKSPACE_DIR="${WORKSPACE_DIR}" docker compose stop "${COMPOSE_SERVICE}"
-  fi
-
-  echo "Running headless Eclipse import in one-off container..."
-  REPOS_DIR="${REPOS_DIR}" WORKSPACE_DIR="${WORKSPACE_DIR}" docker compose run --rm --no-deps --entrypoint bash "${COMPOSE_SERVICE}" -lc '
-set -euo pipefail
-mkdir -p /workspace
-if [ -f /workspace/.metadata/.lock ]; then
-  echo "WARN: Removing stale workspace lock: /workspace/.metadata/.lock"
-  rm -f /workspace/.metadata/.lock
-fi
-mapfile -t project_dirs < <(find /repos -type f -name .project -printf "%h\n" | sort -u)
-if [ "${#project_dirs[@]}" -eq 0 ]; then
-  echo "No .project files found under /repos. Nothing to import."
-  exit 0
-fi
-launcher="/opt/eclipse/eclipse"
-if [ -x /opt/eclipse/eclipsec ]; then
-  launcher="/opt/eclipse/eclipsec"
-fi
-if ! command -v xvfb-run >/dev/null 2>&1; then
-  echo "ERROR: xvfb-run not found in container image." >&2
-  exit 1
-fi
-echo "Importing ${#project_dirs[@]} Eclipse projects into /workspace"
-batch_size=20
-for ((i=0; i<${#project_dirs[@]}; i+=batch_size)); do
-  end=$((i+batch_size))
-  if [ "${end}" -gt "${#project_dirs[@]}" ]; then end="${#project_dirs[@]}"; fi
-  args=(-nosplash -consoleLog -data /workspace)
-  for ((j=i; j<end; j++)); do
-    args+=(-import "${project_dirs[j]}")
+  local import_count=0
+  : > "${list_file}"
+  local host_real
+  host_real="$(cd "${REPOS_DIR}" && pwd)"
+  mapfile -t host_project_dirs < <(find "${REPOS_DIR}" -type f -name .project -printf "%h\n" | sort -u)
+  for project_dir in "${host_project_dirs[@]}"; do
+    local rel="${project_dir#${host_real}/}"
+    printf '/repos/%s\n' "${rel}" >> "${list_file}"
+    import_count=$((import_count + 1))
   done
-  timeout 180 xvfb-run -a "${launcher}" "${args[@]}" -vmargs \
-    --add-opens=java.base/java.util=ALL-UNNAMED \
-    --add-opens=java.base/java.lang=ALL-UNNAMED \
-    --add-opens=java.base/java.lang.reflect=ALL-UNNAMED \
-    --add-opens=java.base/java.text=ALL-UNNAMED \
-    --add-opens=java.desktop/java.awt.font=ALL-UNNAMED
-  code=$?
-  if [ "${code}" -eq 124 ]; then
-    echo "ERROR: Eclipse import batch timed out after 180s. See /workspace/.metadata/.log" >&2
-    exit 1
-  fi
-done
-'
 
-  if [[ "${was_running}" -eq 1 ]]; then
-    echo "Restarting compose service '${COMPOSE_SERVICE}'..."
-    REPOS_DIR="${REPOS_DIR}" WORKSPACE_DIR="${WORKSPACE_DIR}" docker compose up -d "${COMPOSE_SERVICE}"
+  if [[ "${import_count}" -eq 0 ]]; then
+    echo "No .project files found under ${REPOS_DIR}. Nothing to import."
+    return
   fi
+
+  echo "Prepared Docker Eclipse import list: ${list_file} (${import_count} projects via headless -import)"
+
+  echo "Stopping compose service '${COMPOSE_SERVICE}' for exclusive workspace access..."
+  docker compose stop "${COMPOSE_SERVICE}" >/dev/null 2>&1 || true
+
+  local headless_cmd='set -euo pipefail; Xvfb :99 -screen 0 1920x1080x24 >/tmp/xvfb.log 2>&1 & xv=$!; export DISPLAY=:99; while IFS= read -r p; do [ -z "$p" ] && continue; echo "IMPORT:$p"; code=0; timeout 40 /opt/eclipse/eclipse -nosplash -application org.eclipse.cdt.managedbuilder.core.headlessbuild -data /workspace -import "$p" || code=$?; if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then echo "FAILED:$p:$code"; kill $xv || true; wait $xv 2>/dev/null || true; exit "$code"; fi; done < /workspace/.eclipse-import-paths.txt; kill $xv || true; wait $xv 2>/dev/null || true'
+
+  echo "Running headless Eclipse import in one Docker run..."
+  docker compose run --rm --no-deps --entrypoint /bin/bash -e USE_HOST_X11=0 "${COMPOSE_SERVICE}" -lc "${headless_cmd}"
+
+  echo "Starting compose service '${COMPOSE_SERVICE}'..."
+  REPOS_DIR="${REPOS_DIR}" WORKSPACE_DIR="${WORKSPACE_DIR}" docker compose up -d "${COMPOSE_SERVICE}"
 }
 
 while [[ $# -gt 0 ]]; do

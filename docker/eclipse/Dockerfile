@@ -40,7 +40,7 @@ RUN wget --max-redirect=20 -O /tmp/eclipse.tar.gz "$ECLIPSE_URL" \
 RUN /opt/eclipse/eclipse -nosplash \
     -application org.eclipse.equinox.p2.director \
     -repository "https://www.saros-project.org/update-site/eclipse,https://download.eclipse.org/releases/${ECLIPSE_VERSION}" \
-    -installIU "saros.feature.feature.group" \
+    -installIU "saros.feature.feature.group,org.eclipse.cdt.feature.group" \
     -profile epp.package.java \
     -destination /opt/eclipse \
     -bundlepool /opt/eclipse \

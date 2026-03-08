@@ -17,6 +17,7 @@ services:
       ECLIPSE_WORKSPACE: /workspace
       ECLIPSE_SHARED: /shared
       ECLIPSE_BACKUP: /backup
+      DISABLE_SAROS: ${DISABLE_SAROS:-1}
     ports:
       - "${NOVNC_PORT:-6080}:6080"
     volumes:
