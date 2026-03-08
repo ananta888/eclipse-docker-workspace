@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<setup:Project
+    xmi:version="2.0"
+    xmlns:xmi="http://www.omg.org/XMI"
+    xmlns:setup="http://www.eclipse.org/oomph/setup/1.0"
+    name="eclipse-docker-workspace"
+    label="Eclipse Docker Workspace">
+  <setupTask
+      xsi:type="setup:VariableTask"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      name="workspace.location"
+      value="${user.home}/workspace"/>
+  <setupTask
+      xsi:type="setup:PreferenceTask"
+      key="/instance/org.eclipse.jdt.core/org.eclipse.jdt.core.compiler.source"
+      value="21"/>
+  <setupTask
+      xsi:type="setup:PreferenceTask"
+      key="/instance/org.eclipse.jdt.core/org.eclipse.jdt.core.compiler.compliance"
+      value="21"/>
+</setup:Project>

@@ -1,0 +1,23 @@
+services:
+  eclipse:
+    build:
+      context: .
+      dockerfile: docker/eclipse/Dockerfile
+    image: eclipse-classic:${ECLIPSE_IMAGE_TAG:-latest}
+    container_name: eclipse-classic
+    shm_size: 2g
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+      NOVNC_PORT: ${NOVNC_PORT:-6080}
+      VNC_PORT: ${VNC_PORT:-5900}
+      ECLIPSE_WORKSPACE: /workspace
+      ECLIPSE_SHARED: /shared
+      ECLIPSE_BACKUP: /backup
+    ports:
+      - "${NOVNC_PORT:-6080}:6080"
+    volumes:
+      - ${WORKSPACE_DIR:-./portable/workspace}:/workspace
+      - ${ECLIPSE_HOME_DIR:-./eclipse-data/home}:/home/developer
+      - ${SHARED_DIR:-./shared}:/shared
+      - ${BACKUP_DIR:-./backup}:/backup
+    restart: unless-stopped

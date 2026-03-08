@@ -1,0 +1,20 @@
+schemaVersion: 2.2.0
+metadata:
+  name: java21-microservice
+components:
+  - name: tools
+    container:
+      image: eclipse-temurin:21-jdk
+      command: ["sleep", "infinity"]
+      mountSources: true
+commands:
+  - id: build
+    exec:
+      component: tools
+      commandLine: ./mvnw -q clean verify
+      workingDir: ${PROJECT_SOURCE}
+  - id: run
+    exec:
+      component: tools
+      commandLine: ./mvnw spring-boot:run
+      workingDir: ${PROJECT_SOURCE}
