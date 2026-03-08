@@ -54,6 +54,7 @@ if (-not $EclipseBuild) { $EclipseBuild = $releaseInfo.Build }
 $portableRoot = Join-Path $resolvedRepoRoot 'portable'
 $eclipseHome = Join-Path $portableRoot 'eclipse-win'
 $workspaceDir = Join-Path $portableRoot 'workspace'
+$reposDir = Join-Path $portableRoot 'repos'
 $configDir = Join-Path $portableRoot 'config'
 $sharedDir = Join-Path $resolvedRepoRoot 'shared'
 $prefsFile = Join-Path $sharedDir 'prefs\eclipse.epf'
@@ -73,7 +74,7 @@ $package = "eclipse-java-$EclipseVersion-$EclipseBuild-win32-x86_64.zip"
 $downloadUrl = "https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/$EclipseVersion/$EclipseBuild/$package&r=1"
 $cacheDir = Join-Path $portableRoot 'cache'
 $cachedZip = Join-Path $cacheDir $package
-$scriptVersion = "bootstrap-portable-eclipse-win11.ps1 fallback-v5 2026-03-08"
+$scriptVersion = "bootstrap-portable-eclipse-win11.ps1 fallback-v6 2026-03-08"
 
 function Get-LatestP2LogSnippet {
     param(
@@ -199,7 +200,7 @@ Write-Host "Script version: $scriptVersion"
 Write-Host "Eclipse release: $EclipseVersion/$EclipseBuild"
 Write-Host "Download URL: $downloadUrl"
 
-New-Item -ItemType Directory -Force -Path $portableRoot, $workspaceDir, $configDir, $cacheDir | Out-Null
+New-Item -ItemType Directory -Force -Path $portableRoot, $workspaceDir, $reposDir, $configDir, $cacheDir | Out-Null
 
 $eclipseExe = Join-Path $eclipseHome 'eclipse.exe'
 $extractedDir = Join-Path $portableRoot 'eclipse'
@@ -382,4 +383,5 @@ if ((-not $SkipPreferenceImport) -and (Test-Path $prefsFile)) {
 Write-Host "Done."
 Write-Host "Start Eclipse with: portable\\start-eclipse-win11.bat"
 Write-Host "Configured workspace: $workspaceDir"
+Write-Host "Configured repo root: $reposDir"
 Write-Host "Docker compose also maps this workspace path (via WORKSPACE_DIR default)."

@@ -41,6 +41,7 @@ Dieses Repository stellt eine einheitliche, deklarative Eclipse-Konfigurationsba
 ├─ docker/eclipse/
 ├─ docker/saros/
 ├─ portable/
+├─ repos/
 ├─ eclipse-data/home/
 ├─ backup/
 ├─ che-local/
@@ -87,6 +88,7 @@ Das Skript:
 
 - lädt das Eclipse Java Package fuer Windows (Version/Build aus `docker/eclipse/Dockerfile`)
 - entpackt nach `portable/eclipse-win`
+- legt `portable/repos` als Standard-Ordner fuer Git-Repositories an
 - installiert deklarative Plugins aus `shared/p2/plugins.txt`
 - importiert Preferences aus `shared/prefs/eclipse.epf`
 - kopiert `.launch`-Dateien nach `portable/workspace/.launches`
@@ -96,6 +98,11 @@ Starten:
 ```bat
 portable\start-eclipse-win11.bat
 ```
+
+Empfohlene Trennung in der Portable-Variante:
+
+- Repositories unter `portable\repos`
+- Eclipse-Workspace unter `portable\workspace`
 
 ### Windows 11: Docker-Eclipse mit X11 Forwarding (direkte GUI)
 
@@ -291,6 +298,14 @@ docker exec -it eclipse-classic restore-config.sh /backup/eclipse-home-YYYYMMDD-
 ## Plugin-Management
 
 Die Plugin-Liste liegt in `shared/p2/plugins.txt` im Format `Repository|InstallableUnit`.
+
+## Datenablage (Container-Mounts)
+
+- `REPOS_DIR` (default `./repos`) -> `/repos` fuer Git-Repositories
+- `WORKSPACE_DIR` (default `./portable/workspace`) -> `/workspace` fuer Eclipse-Workspace
+- `ECLIPSE_HOME_DIR` (default `./eclipse-data/home`) -> `/home/developer` fuer Eclipse-Userdaten
+- `SHARED_DIR` (default `./shared`) -> `/shared` fuer teamweite deklarative Konfiguration
+- `BACKUP_DIR` (default `./backup`) -> `/backup` fuer Backups
 
 ## Preference-Management
 
