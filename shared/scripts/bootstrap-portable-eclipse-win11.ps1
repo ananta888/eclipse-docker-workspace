@@ -3,7 +3,8 @@ param(
     [string]$EclipseVersion,
     [string]$EclipseBuild,
     [string]$RepoRoot,
-    [switch]$SkipPluginInstall
+    [switch]$SkipPluginInstall,
+    [switch]$SkipPreferenceImport
 )
 
 $ErrorActionPreference = 'Stop'
@@ -64,8 +65,75 @@ $package = "eclipse-java-$EclipseVersion-$EclipseBuild-win32-x86_64.zip"
 $downloadUrl = "https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/$EclipseVersion/$EclipseBuild/$package&r=1"
 $cacheDir = Join-Path $portableRoot 'cache'
 $cachedZip = Join-Path $cacheDir $package
+$scriptVersion = "bootstrap-portable-eclipse-win11.ps1 fallback-v4 2026-03-08"
+
+function Get-LatestP2LogSnippet {
+    param(
+        [string]$EclipseHome,
+        [int]$TailLines = 120
+    )
+
+    $configDir = Join-Path $EclipseHome 'configuration'
+    if (-not (Test-Path $configDir)) {
+        return $null
+    }
+
+    $logCandidates = Get-ChildItem -Path $configDir -Filter '*.log' -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending
+    if (-not $logCandidates) {
+        return $null
+    }
+
+    $latest = $logCandidates[0]
+    $tail = Get-Content -Path $latest.FullName -Tail $TailLines -ErrorAction SilentlyContinue
+    if (-not $tail) {
+        return "Latest p2 log: $($latest.FullName) (empty)"
+    }
+
+    return "Latest p2 log: $($latest.FullName)`n--- LOG TAIL ---`n$($tail -join [Environment]::NewLine)"
+}
+
+function Get-LatestWorkspaceLogSnippet {
+    param(
+        [string]$WorkspaceDir,
+        [int]$TailLines = 120
+    )
+
+    $workspaceLog = Join-Path $WorkspaceDir '.metadata\.log'
+    if (-not (Test-Path $workspaceLog)) {
+        return $null
+    }
+
+    $tail = Get-Content -Path $workspaceLog -Tail $TailLines -ErrorAction SilentlyContinue
+    if (-not $tail) {
+        return "Workspace log: $workspaceLog (empty)"
+    }
+
+    return "Workspace log: $workspaceLog`n--- LOG TAIL ---`n$($tail -join [Environment]::NewLine)"
+}
+
+function Test-FeatureIUInstalled {
+    param(
+        [string]$EclipseHome,
+        [string]$IU
+    )
+
+    if (-not $IU.EndsWith('.feature.group')) {
+        return $false
+    }
+
+    $featureId = $IU.Substring(0, $IU.Length - '.feature.group'.Length)
+    $featuresDir = Join-Path $EclipseHome 'features'
+    if (-not (Test-Path $featuresDir)) {
+        return $false
+    }
+
+    $matches = Get-ChildItem -Path $featuresDir -Filter "$featureId_*" -ErrorAction SilentlyContinue
+    return [bool]$matches
+}
 
 Write-Host "Repo root: $resolvedRepoRoot"
+Write-Host "Script version: $scriptVersion"
 Write-Host "Eclipse release: $EclipseVersion/$EclipseBuild"
 Write-Host "Download URL: $downloadUrl"
 
@@ -165,6 +233,11 @@ if (-not $SkipPluginInstall) {
     }
 
     foreach ($iu in $pluginOrder) {
+        if (Test-FeatureIUInstalled -EclipseHome $eclipseHome -IU $iu) {
+            Write-Host "  -> $iu already present in local Eclipse features. Skipping install."
+            continue
+        }
+
         $installed = $false
         $attemptFailures = New-Object System.Collections.Generic.List[string]
 
@@ -172,6 +245,7 @@ if (-not $SkipPluginInstall) {
             Write-Host "  -> $iu (repo: $repo)"
             $directorArgs = @(
                 '-nosplash',
+                '-consoleLog',
                 '-application', 'org.eclipse.equinox.p2.director',
                 '-repository', $repo,
                 '-installIU', $iu,
@@ -188,7 +262,15 @@ if (-not $SkipPluginInstall) {
             }
 
             $details = ($directorOutput | Out-String).Trim()
-            $attemptFailures.Add("Repository: $repo`n$details") | Out-Null
+            $p2LogSnippet = Get-LatestP2LogSnippet -EclipseHome $eclipseHome
+            $failureBlock = "Repository: $repo"
+            if ($details) {
+                $failureBlock += "`n$details"
+            }
+            if ($p2LogSnippet) {
+                $failureBlock += "`n`n$p2LogSnippet"
+            }
+            $attemptFailures.Add($failureBlock) | Out-Null
             Write-Warning "Plugin install attempt failed for IU '$iu' from repo '$repo'. Trying next configured repo (if any)."
         }
 
@@ -199,16 +281,28 @@ if (-not $SkipPluginInstall) {
     }
 }
 
-if (Test-Path $prefsFile) {
+if ((-not $SkipPreferenceImport) -and (Test-Path $prefsFile)) {
     Write-Host "Importing team preferences..."
-    & $eclipseExe `
-        -nosplash `
-        -application org.eclipse.ui.ide.workbench `
-        -data $workspaceDir `
-        -import $prefsFile
+    $importArgs = @(
+        '-nosplash',
+        '-consoleLog',
+        '-application', 'org.eclipse.ui.ide.workbench',
+        '-data', $workspaceDir,
+        '-import', $prefsFile
+    )
+    $importOutput = & $eclipseExe @importArgs 2>&1
 
     if ($LASTEXITCODE -ne 0) {
-        throw "Preference import failed."
+        $details = ($importOutput | Out-String).Trim()
+        $workspaceLogSnippet = Get-LatestWorkspaceLogSnippet -WorkspaceDir $workspaceDir
+        $failureMessage = "Preference import failed (continuing bootstrap)."
+        if ($details) {
+            $failureMessage += "`n$details"
+        }
+        if ($workspaceLogSnippet) {
+            $failureMessage += "`n`n$workspaceLogSnippet"
+        }
+        Write-Warning $failureMessage
     }
 }
 
