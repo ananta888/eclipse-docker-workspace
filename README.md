@@ -97,7 +97,19 @@ portable\start-eclipse-win11.bat
 
 ### Windows 11: Docker-Eclipse mit X11 Forwarding (direkte GUI)
 
-1. X-Server auf Windows starten (z. B. VcXsrv mit deaktivierter Access Control).
+1. X-Server auf Windows starten (PowerShell als Administrator):
+
+```powershell
+taskkill /IM vcxsrv.exe /F
+& "C:\Program Files\VcXsrv\vcxsrv.exe" :0 -multiwindow -clipboard -ac -listen tcp
+```
+
+Prüfen:
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name='vcxsrv.exe'" | Select-Object CommandLine
+Get-NetTCPConnection -State Listen -LocalPort 6000
+```
 2. Windows-Firewall für X11-Port freigeben (PowerShell als Administrator):
 
 ```powershell
@@ -111,6 +123,14 @@ USE_HOST_X11=1
 HOST_DISPLAY=host.docker.internal:0.0
 ```
 
+Falls Docker direkt in WSL2 laeuft (ohne Docker Desktop), kann `host.docker.internal` auf eine falsche Adresse zeigen.
+Dann `HOST_DISPLAY` auf die echte Windows-IP setzen (z. B. `192.168.178.100:0.0`):
+
+```dotenv
+USE_HOST_X11=1
+HOST_DISPLAY=192.168.178.100:0.0
+```
+
 4. Container neu bauen/starten:
 
 ```bash
@@ -118,7 +138,7 @@ docker compose up -d --build
 ```
 
 Dann öffnet sich Eclipse direkt im Windows-X-Server.  
-Hinweis: In `USE_HOST_X11=1` ist noVNC absichtlich deaktiviert.
+Hinweis: In `USE_HOST_X11=1` ist noVNC absichtlich deaktiviert. X11-Forwarding und noVNC parallel sind im aktuellen Setup nicht gleichzeitig aktiv.
 
 ### Plugins deklarativ installieren
 
