@@ -157,6 +157,20 @@ docker compose up -d --build
 
 Hinweis: Alle Teilnehmer brauchen Saros in ihrer Eclipse-Installation.
 
+Troubleshooting (Java 21 / Saros):
+
+- Der Container-Start setzt automatisch notwendige Java-Module-Opens fuer Saros.
+- Falls Saros dennoch mit `InaccessibleObjectException` fehlschlaegt:
+  1. Container neu bauen/starten: `docker compose up -d --build --force-recreate`
+  2. Pruefen, ob die VM-Args aktiv sind:
+     `docker exec eclipse-classic bash -lc 'tr "\0" " " < /proc/1/cmdline'`
+  3. Erwartete Schalter:
+     `--add-opens=java.base/java.util=ALL-UNNAMED`
+     `--add-opens=java.base/java.lang=ALL-UNNAMED`
+     `--add-opens=java.base/java.lang.reflect=ALL-UNNAMED`
+     `--add-opens=java.base/java.text=ALL-UNNAMED`
+     `--add-opens=java.desktop/java.awt.font=ALL-UNNAMED`
+
 ### Plugins deklarativ installieren
 
 ```bash
