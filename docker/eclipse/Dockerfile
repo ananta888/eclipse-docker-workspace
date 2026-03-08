@@ -26,6 +26,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     && rm -rf /var/lib/apt/lists/*
 
+# Make noVNC root URL serve the client directly.
+RUN ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html
+
 RUN useradd -ms /bin/bash developer
 
 WORKDIR /opt
