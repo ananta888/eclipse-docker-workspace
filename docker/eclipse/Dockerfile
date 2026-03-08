@@ -2,10 +2,10 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Europe/Berlin
-ENV ECLIPSE_VERSION=2024-12
+ENV ECLIPSE_VERSION=2025-12
 ENV ECLIPSE_BUILD=R
 ENV ECLIPSE_PACKAGE=eclipse-java-${ECLIPSE_VERSION}-${ECLIPSE_BUILD}-linux-gtk-x86_64.tar.gz
-ENV ECLIPSE_URL=https://ftp.halifax.rwth-aachen.de/eclipse/technology/epp/downloads/release/${ECLIPSE_VERSION}/${ECLIPSE_BUILD}/${ECLIPSE_PACKAGE}
+ENV ECLIPSE_URL=https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/${ECLIPSE_VERSION}/${ECLIPSE_BUILD}/${ECLIPSE_PACKAGE}\&r=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openjdk-21-jdk \
@@ -26,8 +26,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -ms /bin/bash developer
+
 WORKDIR /opt
-RUN wget -O /tmp/eclipse.tar.gz ${ECLIPSE_URL} \
+RUN wget --max-redirect=20 -O /tmp/eclipse.tar.gz "${ECLIPSE_URL}" \
     && tar -xzf /tmp/eclipse.tar.gz -C /opt \
     && rm /tmp/eclipse.tar.gz \
     && ln -s /opt/eclipse/eclipse /usr/local/bin/eclipse
@@ -35,6 +36,7 @@ RUN wget -O /tmp/eclipse.tar.gz ${ECLIPSE_URL} \
 COPY docker/eclipse/scripts/entrypoint.sh /entrypoint.sh
 COPY docker/eclipse/scripts/backup-config.sh /usr/local/bin/backup-config.sh
 COPY docker/eclipse/scripts/restore-config.sh /usr/local/bin/restore-config.sh
+
 RUN chmod +x /entrypoint.sh /usr/local/bin/backup-config.sh /usr/local/bin/restore-config.sh
 
 USER developer
