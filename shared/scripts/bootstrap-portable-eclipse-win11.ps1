@@ -4,7 +4,7 @@ param(
     [string]$EclipseBuild,
     [string]$RepoRoot,
     [switch]$SkipPluginInstall,
-    [switch]$SkipPreferenceImport
+    [switch]$ImportPreferences
 )
 
 $ErrorActionPreference = 'Stop'
@@ -355,7 +355,7 @@ if (-not $SkipPluginInstall) {
     }
 }
 
-if ((-not $SkipPreferenceImport) -and (Test-Path $prefsFile)) {
+if ($ImportPreferences -and (Test-Path $prefsFile)) {
     Write-Host "Importing team preferences..."
     $importArgs = @(
         '-nosplash',
@@ -378,6 +378,9 @@ if ((-not $SkipPreferenceImport) -and (Test-Path $prefsFile)) {
         }
         Write-Warning $failureMessage
     }
+}
+elseif (Test-Path $prefsFile) {
+    Write-Host "Skipping preference import (headless default). Use -ImportPreferences to run it explicitly."
 }
 
 Write-Host "Done."
