@@ -1,0 +1,16 @@
+services:
+  saros-xmpp:
+    image: prosody/prosody:0.12
+    container_name: saros-xmpp
+    restart: unless-stopped
+    ports:
+      - "${SAROS_XMPP_PORT:-5222}:5222"
+      - "${SAROS_HTTP_PORT:-5280}:5280"
+    volumes:
+      - ./docker/saros/prosody.cfg.lua:/etc/prosody/prosody.cfg.lua:ro
+      - saros_prosody_data:/var/lib/prosody
+      - saros_prosody_logs:/var/log/prosody
+
+volumes:
+  saros_prosody_data:
+  saros_prosody_logs:

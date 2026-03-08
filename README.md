@@ -36,8 +36,10 @@ Dieses Repository stellt eine einheitliche, deklarative Eclipse-Konfigurationsba
 
 ```text
 .
+├─ docker-compose.saros.yml
 ├─ shared/
 ├─ docker/eclipse/
+├─ docker/saros/
 ├─ portable/
 ├─ eclipse-data/home/
 ├─ backup/
@@ -170,6 +172,44 @@ Troubleshooting (Java 21 / Saros):
      `--add-opens=java.base/java.lang.reflect=ALL-UNNAMED`
      `--add-opens=java.base/java.text=ALL-UNNAMED`
      `--add-opens=java.desktop/java.awt.font=ALL-UNNAMED`
+
+### Eigener XMPP-Server fuer Saros (Docker Compose)
+
+Wenn externe Registrierung (z. B. FU-Server) per Richtlinie blockiert ist, kann lokal ein eigener XMPP-Server gestartet werden.
+
+Start:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.saros.yml up -d --build
+```
+
+Nur XMPP (ohne Eclipse neu zu bauen):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.saros.yml up -d saros-xmpp
+```
+
+Ports (aus `.env`):
+
+- `SAROS_XMPP_PORT` (default `5222`)
+- `SAROS_HTTP_PORT` (default `5280`)
+
+Saros-Login in Eclipse:
+
+- Docker-Eclipse: Domain/Host `saros-xmpp`, Port `5222`
+- Portable Eclipse (Windows): Domain/Host `localhost`, Port `5222`
+
+Registrierung:
+
+- In-Band-Registration ist im lokalen Server aktiviert (`allow_registration = true`).
+- Falls die Saros-UI die Account-Erstellung nicht anbietet, User direkt anlegen:
+
+```bash
+docker exec -it saros-xmpp prosodyctl register alice saros-xmpp <passwort>
+docker exec -it saros-xmpp prosodyctl register bob saros-xmpp <passwort>
+```
+
+Danach in Saros mit `alice@saros-xmpp` bzw. `bob@saros-xmpp` anmelden.
 
 ### Remote Pair-Development mit Saros (Portable Eclipse unter Windows)
 
