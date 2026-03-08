@@ -59,6 +59,12 @@ Danach im Browser öffnen:
 http://localhost:6080
 ```
 
+Falls ein Verzeichnislisting erscheint, direkt noVNC öffnen:
+
+```text
+http://localhost:6080/vnc.html?autoconnect=1&resize=remote
+```
+
 ## Typische Workflows
 
 ### Windows 11: Portable Eclipse bootstrap (vorkonfiguriert)
@@ -88,6 +94,25 @@ Starten:
 ```bat
 portable\start-eclipse-win11.bat
 ```
+
+### Windows 11: Docker-Eclipse mit X11 Forwarding (direkte GUI)
+
+1. X-Server auf Windows starten (z. B. VcXsrv mit deaktivierter Access Control).
+2. In `.env` setzen:
+
+```dotenv
+USE_HOST_X11=1
+HOST_DISPLAY=host.docker.internal:0.0
+```
+
+3. Container neu bauen/starten:
+
+```bash
+docker compose up -d --build
+```
+
+Dann öffnet sich Eclipse direkt im Windows-X-Server.  
+Hinweis: In `USE_HOST_X11=1` ist noVNC absichtlich deaktiviert.
 
 ### Plugins deklarativ installieren
 

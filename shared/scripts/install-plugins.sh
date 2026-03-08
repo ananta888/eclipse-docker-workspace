@@ -17,9 +17,27 @@ if [ ! -f "${PLUGINS_FILE}" ]; then
   exit 1
 fi
 
-while IFS='|' read -r repo iu; do
+while IFS= read -r raw_line; do
+  line="${raw_line#"${raw_line%%[![:space:]]*}"}"
+  [ -z "${line}" ] && continue
+  case "${line}" in
+    \#*) continue ;;
+  esac
+
+  IFS='|' read -r repo iu <<< "${line}"
+  repo="${repo#"${repo%%[![:space:]]*}"}"
+  repo="${repo%"${repo##*[![:space:]]}"}"
+  iu="${iu#"${iu%%[![:space:]]*}"}"
+  iu="${iu%"${iu##*[![:space:]]}"}"
   [ -z "${repo}" ] && continue
   [ -z "${iu}" ] && continue
+
+  if [ -n "${ECLIPSE_VERSION:-}" ]; then
+    repo="${repo//'${ECLIPSE_VERSION}'/${ECLIPSE_VERSION}}"
+    repo="${repo//'$ECLIPSE_VERSION'/${ECLIPSE_VERSION}}"
+  fi
+
+  echo "Installing ${iu} from ${repo}"
   "${ECLIPSE_HOME}/eclipse" \
     -application org.eclipse.equinox.p2.director \
     -nosplash \

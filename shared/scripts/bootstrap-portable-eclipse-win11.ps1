@@ -62,33 +62,61 @@ $launchDstDir = Join-Path $workspaceDir '.launches'
 
 $package = "eclipse-java-$EclipseVersion-$EclipseBuild-win32-x86_64.zip"
 $downloadUrl = "https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/$EclipseVersion/$EclipseBuild/$package&r=1"
-$tempZip = Join-Path $env:TEMP $package
+$cacheDir = Join-Path $portableRoot 'cache'
+$cachedZip = Join-Path $cacheDir $package
 
 Write-Host "Repo root: $resolvedRepoRoot"
 Write-Host "Eclipse release: $EclipseVersion/$EclipseBuild"
 Write-Host "Download URL: $downloadUrl"
 
-New-Item -ItemType Directory -Force -Path $portableRoot, $workspaceDir, $configDir | Out-Null
-
-if (Test-Path $eclipseHome) {
-    Remove-Item -Recurse -Force $eclipseHome
-}
-
-Write-Host "Downloading Eclipse package..."
-Invoke-WebRequest -Uri $downloadUrl -OutFile $tempZip
-
-Write-Host "Extracting Eclipse..."
-Expand-Archive -Path $tempZip -DestinationPath $portableRoot -Force
-
-$extractedDir = Join-Path $portableRoot 'eclipse'
-if (-not (Test-Path $extractedDir)) {
-    throw "Expected extracted directory not found: $extractedDir"
-}
-
-Move-Item -Force -Path $extractedDir -Destination $eclipseHome
-Remove-Item -Force $tempZip
+New-Item -ItemType Directory -Force -Path $portableRoot, $workspaceDir, $configDir, $cacheDir | Out-Null
 
 $eclipseExe = Join-Path $eclipseHome 'eclipse.exe'
+$extractedDir = Join-Path $portableRoot 'eclipse'
+$extractedExe = Join-Path $extractedDir 'eclipse.exe'
+$hasExistingInstall = Test-Path $eclipseExe
+$recoveryDir = "${eclipseHome}.bak-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+$recoveryHint = "Safe recovery (no delete): Move-Item -Path '$eclipseHome' -Destination '$recoveryDir'"
+
+# Early state checks before any download/extract action.
+if ($hasExistingInstall) {
+    Write-Host "Existing Eclipse installation found ($eclipseExe). Skipping download/extract."
+}
+elseif (Test-Path $extractedExe) {
+    Write-Host "Found already extracted Eclipse directory ($extractedDir). Finalizing installation without download."
+    if (Test-Path $eclipseHome) {
+        throw "Target directory already exists without valid eclipse.exe: $eclipseHome`nRefusing to delete existing content automatically.`n$recoveryHint"
+    }
+    Move-Item -Force -Path $extractedDir -Destination $eclipseHome
+    $hasExistingInstall = Test-Path $eclipseExe
+}
+
+if (-not $hasExistingInstall) {
+    if (-not (Test-Path $cachedZip)) {
+        Write-Host "Downloading Eclipse package..."
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $cachedZip
+    }
+    else {
+        Write-Host "Using cached Eclipse package: $cachedZip"
+    }
+
+    if (Test-Path $eclipseHome) {
+        throw "Target directory already exists without valid eclipse.exe: $eclipseHome`nRefusing to delete existing content automatically.`n$recoveryHint"
+    }
+
+    Write-Host "Extracting Eclipse..."
+    Expand-Archive -Path $cachedZip -DestinationPath $portableRoot -Force
+
+    if (-not (Test-Path $extractedDir)) {
+        throw "Expected extracted directory not found: $extractedDir"
+    }
+    if (-not (Test-Path $extractedExe)) {
+        throw "Expected extracted executable not found: $extractedExe"
+    }
+
+    Move-Item -Force -Path $extractedDir -Destination $eclipseHome
+}
+
 if (-not (Test-Path $eclipseExe)) {
     throw "Eclipse executable not found: $eclipseExe"
 }
@@ -122,20 +150,24 @@ if (-not $SkipPluginInstall) {
         $repo = $parts[0].Trim()
         $iu = $parts[1].Trim()
         if (-not $repo -or -not $iu) { continue }
+        $repo = $repo.Replace('${ECLIPSE_VERSION}', $EclipseVersion).Replace('$ECLIPSE_VERSION', $EclipseVersion)
 
-        Write-Host "  -> $iu"
-        & $eclipseExe `
-            -nosplash `
-            -application org.eclipse.equinox.p2.director `
-            -repository $repo `
-            -installIU $iu `
-            -profile SDKProfile `
-            -destination $eclipseHome `
-            -bundlepool $eclipseHome `
-            -roaming
+        Write-Host "  -> $iu (repo: $repo)"
+        $directorArgs = @(
+            '-nosplash',
+            '-application', 'org.eclipse.equinox.p2.director',
+            '-repository', $repo,
+            '-installIU', $iu,
+            '-profile', 'SDKProfile',
+            '-destination', $eclipseHome,
+            '-bundlepool', $eclipseHome,
+            '-roaming'
+        )
+        $directorOutput = & $eclipseExe @directorArgs 2>&1
 
         if ($LASTEXITCODE -ne 0) {
-            throw "Plugin installation failed for IU: $iu"
+            $details = ($directorOutput | Out-String).Trim()
+            throw "Plugin installation failed for IU: $iu`nRepository: $repo`nDetails:`n$details"
         }
     }
 }

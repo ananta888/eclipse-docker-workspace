@@ -4,6 +4,8 @@ set -euo pipefail
 NOVNC_PORT=${NOVNC_PORT:-6080}
 VNC_PORT=${VNC_PORT:-5900}
 DISPLAY_NUM=${DISPLAY_NUM:-:1}
+USE_HOST_X11=${USE_HOST_X11:-0}
+HOST_DISPLAY=${HOST_DISPLAY:-host.docker.internal:0.0}
 ECLIPSE_WORKSPACE=${ECLIPSE_WORKSPACE:-/home/developer/workspace}
 ECLIPSE_SHARED=${ECLIPSE_SHARED:-/shared}
 ECLIPSE_BACKUP=${ECLIPSE_BACKUP:-/backup}
@@ -11,7 +13,11 @@ ECLIPSE_BACKUP=${ECLIPSE_BACKUP:-/backup}
 DEVELOPER_USER=${DEVELOPER_USER:-developer}
 DEVELOPER_HOME=${DEVELOPER_HOME:-/home/${DEVELOPER_USER}}
 
-export DISPLAY="${DISPLAY_NUM}"
+if [ "${USE_HOST_X11}" = "1" ]; then
+  export DISPLAY="${DISPLAY:-${HOST_DISPLAY}}"
+else
+  export DISPLAY="${DISPLAY_NUM}"
+fi
 export HOME="${DEVELOPER_HOME}"
 
 ensure_dir() {
@@ -59,10 +65,12 @@ run_as_developer() {
   fi
 }
 
-run_as_developer Xvfb "${DISPLAY_NUM}" -screen 0 1920x1080x24 &
-run_as_developer xfce4-session &
-run_as_developer x11vnc -display "${DISPLAY_NUM}" -rfbport "${VNC_PORT}" -shared -forever -nopw &
-run_as_developer websockify --web=/usr/share/novnc/ "${NOVNC_PORT}" "localhost:${VNC_PORT}" &
+if [ "${USE_HOST_X11}" != "1" ]; then
+  run_as_developer Xvfb "${DISPLAY_NUM}" -screen 0 1920x1080x24 &
+  run_as_developer xfce4-session &
+  run_as_developer x11vnc -display "${DISPLAY_NUM}" -rfbport "${VNC_PORT}" -shared -forever -nopw &
+  run_as_developer websockify --web=/usr/share/novnc/ "${NOVNC_PORT}" "localhost:${VNC_PORT}" &
+fi
 
 if [ "${RUN_AS_ROOT}" -eq 1 ]; then
   exec gosu "${DEVELOPER_USER}" /opt/eclipse/eclipse -data "${ECLIPSE_WORKSPACE}"

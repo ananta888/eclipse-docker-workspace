@@ -11,6 +11,9 @@ services:
       TZ: ${TZ:-Europe/Berlin}
       NOVNC_PORT: ${NOVNC_PORT:-6080}
       VNC_PORT: ${VNC_PORT:-5900}
+      USE_HOST_X11: ${USE_HOST_X11:-0}
+      HOST_DISPLAY: ${HOST_DISPLAY:-host.docker.internal:0.0}
+      DISPLAY: ${DISPLAY:-}
       ECLIPSE_WORKSPACE: /workspace
       ECLIPSE_SHARED: /shared
       ECLIPSE_BACKUP: /backup
