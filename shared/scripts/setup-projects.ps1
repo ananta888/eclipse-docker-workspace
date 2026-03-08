@@ -16,7 +16,9 @@ param(
     [string]$RepoRoot,
     [switch]$SkipSync,
     [switch]$GenerateEclipseProjects,
-    [switch]$ImportIntoEclipse
+    [switch]$ImportIntoEclipse,
+    [switch]$DisableSaros,
+    [switch]$EnableSaros
 )
 
 $ErrorActionPreference = 'Stop'
@@ -54,6 +56,36 @@ function Add-ManifestEntry {
     $br = if ([string]::IsNullOrWhiteSpace($Branch)) { "" } else { $Branch.Trim() }
     $target = if ([string]::IsNullOrWhiteSpace($TargetDir)) { Get-DefaultTargetDir -RepoUrl $repo } else { $TargetDir.Trim() }
     $List.Add("$repo|$br|$target") | Out-Null
+}
+
+function Set-SarosEnabled {
+    param(
+        [string]$RepoRootPath,
+        [bool]$Enabled
+    )
+
+    $pluginsDir = Join-Path $RepoRootPath "portable\eclipse-win\plugins"
+    if (-not (Test-Path $pluginsDir)) {
+        throw "Eclipse plugins directory not found: $pluginsDir"
+    }
+
+    if ($Enabled) {
+        $disabledFiles = Get-ChildItem -Path $pluginsDir -File -Filter "saros*.jar.disabled" -ErrorAction SilentlyContinue
+        foreach ($file in $disabledFiles) {
+            $target = $file.FullName.Substring(0, $file.FullName.Length - ".disabled".Length)
+            Move-Item -Force -Path $file.FullName -Destination $target
+            Write-Host "Enabled Saros bundle: $(Split-Path -Leaf $target)"
+        }
+        return
+    }
+
+    $enabledFiles = Get-ChildItem -Path $pluginsDir -File -Filter "saros*.jar" -ErrorAction SilentlyContinue |
+        Where-Object { -not $_.Name.EndsWith(".disabled") }
+    foreach ($file in $enabledFiles) {
+        $target = "$($file.FullName).disabled"
+        Move-Item -Force -Path $file.FullName -Destination $target
+        Write-Host "Disabled Saros bundle: $(Split-Path -Leaf $file.FullName)"
+    }
 }
 
 function Invoke-GradleEclipse {
@@ -158,29 +190,29 @@ function Import-ProjectsIntoEclipse {
     $beforeCount = & $countImportedProjects
     Write-Host "Importing $($projectDirs.Count) Eclipse projects into workspace $WorkspacePath (before: $beforeCount)"
 
+    $importArgs = @(
+        "-nosplash"
+        "-consoleLog"
+        "-application"
+        "org.eclipse.ui.ide.workbench"
+        "-data"
+        $WorkspacePath
+    )
     foreach ($projectDir in $projectDirs) {
-        $importArgs = @(
-            "-nosplash"
-            "-consoleLog"
-            "-application"
-            "org.eclipse.ui.ide.workbench"
-            "-data"
-            $WorkspacePath
-            "-import"
-            $projectDir
-            "-vmargs"
-            "--add-opens=java.base/java.util=ALL-UNNAMED"
-            "--add-opens=java.base/java.lang=ALL-UNNAMED"
-            "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED"
-            "--add-opens=java.base/java.text=ALL-UNNAMED"
-            "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
-        )
+        $importArgs += @("-import", $projectDir)
+    }
+    $importArgs += @(
+        "-vmargs"
+        "--add-opens=java.base/java.util=ALL-UNNAMED"
+        "--add-opens=java.base/java.lang=ALL-UNNAMED"
+        "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED"
+        "--add-opens=java.base/java.text=ALL-UNNAMED"
+        "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
+    )
 
-        Write-Host "  -> importing $projectDir"
-        $proc = Start-Process -FilePath $eclipseExe -ArgumentList $importArgs -NoNewWindow -Wait -PassThru
-        if ($proc.ExitCode -ne 0) {
-            throw "Eclipse project import failed for '$projectDir' with exit code $($proc.ExitCode)"
-        }
+    $proc = Start-Process -FilePath $eclipseExe -ArgumentList $importArgs -NoNewWindow -Wait -PassThru
+    if ($proc.ExitCode -ne 0) {
+        throw "Eclipse project import failed with exit code $($proc.ExitCode)"
     }
 
     $afterCount = & $countImportedProjects
@@ -206,6 +238,18 @@ Add-ManifestEntry -List $lines -RepoUrl $SubRepoUrl2 -Branch $SubBranch2 -Target
 
 Set-Content -Path $manifestPath -Value $lines -Encoding UTF8
 Write-Host "Manifest written: $manifestPath"
+
+if ($DisableSaros -and $EnableSaros) {
+    throw "Use either -DisableSaros or -EnableSaros, not both."
+}
+
+if ($DisableSaros) {
+    Set-SarosEnabled -RepoRootPath $root -Enabled:$false
+}
+
+if ($EnableSaros) {
+    Set-SarosEnabled -RepoRootPath $root -Enabled:$true
+}
 
 if (-not $SkipSync) {
     if (-not (Test-Path $cloneScript)) {

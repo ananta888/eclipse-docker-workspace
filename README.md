@@ -137,8 +137,17 @@ Optional:
 - `-MasterBranch`, `-SubBranch1`, `-SubBranch2` optional: wenn nicht gesetzt, wird automatisch Branch/Default-Branch (`origin/HEAD`) verwendet
 - `-SkipSync` wenn nur `repos-manifest.txt` erzeugt werden soll
 - `-GenerateEclipseProjects` fuehrt in geklonten Repos mit Wrapper `gradlew eclipse` aus (generiert `.project/.classpath`)
-- `-ImportIntoEclipse` importiert alle Eclipse-Projekte unter `portable\repos` per `eclipse.exe -importAll` in `portable\workspace`
+- `-ImportIntoEclipse` importiert rekursiv gefundene Eclipse-Projekte (`.project`) in `portable\workspace`
+- `-DisableSaros` deaktiviert Saros-Bundles (Plugin bleibt installiert, aber ohne Auto-Login-Popups)
+- `-EnableSaros` aktiviert zuvor deaktivierte Saros-Bundles wieder
 - Parametername `SubRepo...` meint hier zusaetzliche, separate Repositories (nicht Gradle-Teilprojekte im Master-Repo).
+
+Saros manuell umschalten:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\shared\scripts\toggle-saros.ps1 -Mode disable
+powershell -NoProfile -ExecutionPolicy Bypass -File .\shared\scripts\toggle-saros.ps1 -Mode enable
+```
 
 Hinweis fuer komplexe Gradle-Setups (Multi-/Composite-Builds):
 
