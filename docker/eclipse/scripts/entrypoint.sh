@@ -9,6 +9,7 @@ HOST_DISPLAY=${HOST_DISPLAY:-host.docker.internal:0.0}
 ECLIPSE_WORKSPACE=${ECLIPSE_WORKSPACE:-/home/developer/workspace}
 ECLIPSE_SHARED=${ECLIPSE_SHARED:-/shared}
 ECLIPSE_BACKUP=${ECLIPSE_BACKUP:-/backup}
+ECLIPSE_VM_OPENS=${ECLIPSE_VM_OPENS:---add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED}
 
 DEVELOPER_USER=${DEVELOPER_USER:-developer}
 DEVELOPER_HOME=${DEVELOPER_HOME:-/home/${DEVELOPER_USER}}
@@ -73,7 +74,7 @@ if [ "${USE_HOST_X11}" != "1" ]; then
 fi
 
 if [ "${RUN_AS_ROOT}" -eq 1 ]; then
-  exec gosu "${DEVELOPER_USER}" /opt/eclipse/eclipse -data "${ECLIPSE_WORKSPACE}"
+  exec gosu "${DEVELOPER_USER}" /opt/eclipse/eclipse -data "${ECLIPSE_WORKSPACE}" -vmargs ${ECLIPSE_VM_OPENS}
 else
-  exec /opt/eclipse/eclipse -data "${ECLIPSE_WORKSPACE}"
+  exec /opt/eclipse/eclipse -data "${ECLIPSE_WORKSPACE}" -vmargs ${ECLIPSE_VM_OPENS}
 fi
