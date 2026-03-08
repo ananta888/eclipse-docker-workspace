@@ -17,6 +17,7 @@ param(
     [switch]$SkipSync,
     [switch]$GenerateEclipseProjects,
     [switch]$ImportIntoEclipse,
+    [string]$WorkspacePath,
     [switch]$DisableSaros,
     [switch]$EnableSaros
 )
@@ -317,7 +318,11 @@ if ($GenerateEclipseProjects) {
 }
 
 if ($ImportIntoEclipse) {
-    $workspace = Join-Path $root "portable\workspace"
+    $workspace = if ([string]::IsNullOrWhiteSpace($WorkspacePath)) {
+        Join-Path $root "portable\workspace-win"
+    } else {
+        $WorkspacePath
+    }
     New-Item -ItemType Directory -Force -Path $workspace | Out-Null
     Import-ProjectsIntoEclipse -RepoRootPath $root -WorkspacePath $workspace
 }

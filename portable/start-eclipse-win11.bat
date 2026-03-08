@@ -2,7 +2,7 @@
 setlocal
 set "SCRIPT_DIR=%~dp0"
 set "ECLIPSE_HOME=%SCRIPT_DIR%eclipse-win"
-set "WORKSPACE_DIR=%SCRIPT_DIR%workspace"
+if "%WORKSPACE_DIR%"=="" set "WORKSPACE_DIR=%SCRIPT_DIR%workspace-win"
 
 if not exist "%ECLIPSE_HOME%\eclipse.exe" (
   echo Eclipse executable not found: "%ECLIPSE_HOME%\eclipse.exe"
