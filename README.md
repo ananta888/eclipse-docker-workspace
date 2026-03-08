@@ -120,15 +120,15 @@ Repos aus Manifest klonen/aktualisieren:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\shared\scripts\clone-repos.ps1
 ```
 
-Ein-Kommando-Setup (Master + optional 2 Zusatzprojekte):
+Ein-Kommando-Setup (Master-Repo + optional 2 Zusatz-Repos, z. B. Config-Repos):
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\shared\scripts\setup-projects.ps1 `
   -MasterRepoUrl "https://github.com/org/master.git" `
   -MasterBranch "main" `
-  -SubRepoUrl1 "https://github.com/org/embedded.git" `
+  -SubRepoUrl1 "https://github.com/org/config-repo-1.git" `
   -SubBranch1 "main" `
-  -SubRepoUrl2 "https://github.com/org/war.git" `
+  -SubRepoUrl2 "https://github.com/org/config-repo-2.git" `
   -SubBranch2 "main"
 ```
 
@@ -136,10 +136,12 @@ Optional:
 
 - `-MasterTargetDir`, `-SubTargetDir1`, `-SubTargetDir2` fuer eigene Zielordner unter `portable\repos`
 - `-SkipSync` wenn nur `repos-manifest.txt` erzeugt werden soll
+- Parametername `SubRepo...` meint hier zusaetzliche, separate Repositories (nicht Gradle-Teilprojekte im Master-Repo).
 
 Hinweis fuer komplexe Gradle-Setups (Multi-/Composite-Builds):
 
 - Das Clone-Skript nutzt `--recurse-submodules` und aktualisiert Submodule rekursiv.
+- Gradle-Teilprojekte wie `embedded`/`war` im Master-Repo sind keine Zusatz-Repos und werden ueber Gradle-Import geladen.
 - Bei Eclipse-Import fuer komplexe Multi-/Composite-Builds:
   1. `File -> Import -> Gradle -> Existing Gradle Project`
   2. zuerst den Repository-Root unter `portable\repos\<projekt>` pruefen
