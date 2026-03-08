@@ -6,6 +6,7 @@ services:
     image: eclipse-classic:${ECLIPSE_IMAGE_TAG:-latest}
     container_name: eclipse-classic
     shm_size: 2g
+    user: "0:0"
     environment:
       TZ: ${TZ:-Europe/Berlin}
       NOVNC_PORT: ${NOVNC_PORT:-6080}
