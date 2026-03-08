@@ -142,6 +142,30 @@ Optional:
 - `-EnableSaros` aktiviert zuvor deaktivierte Saros-Bundles wieder
 - Parametername `SubRepo...` meint hier zusaetzliche, separate Repositories (nicht Gradle-Teilprojekte im Master-Repo).
 
+### Linux/WSL Bash + Docker (ohne PowerShell)
+
+Clone/Update + optional Eclipse-Import direkt per Bash:
+
+```bash
+./shared/scripts/setup-projects.sh \
+  --master-repo-url "https://github.com/Geograt/gisx3-server.git" \
+  --sub-repo-url1 "https://github.com/Geograt/gisx3-configs.git" \
+  --import-into-eclipse
+```
+
+Optional:
+
+- `--skip-sync` nur Manifest schreiben
+- `--generate-eclipse-projects` fuehrt `gradlew eclipse` in passenden Repo-Wurzeln aus
+- `--import-into-eclipse` fuehrt den Import headless in einem One-Off-Docker-Container aus
+- `--compose-service <name>` falls der Service nicht `eclipse` heisst
+- `--repos-dir <path>`, `--workspace-dir <path>` fuer abweichende lokale Pfade
+
+Hinweis:
+
+- Fuer `--import-into-eclipse` muss `docker compose` verfuegbar sein.
+- Wenn der Eclipse-Service bereits laeuft, wird er fuer den Import kurz gestoppt und danach wieder gestartet.
+
 Saros manuell umschalten:
 
 ```powershell
