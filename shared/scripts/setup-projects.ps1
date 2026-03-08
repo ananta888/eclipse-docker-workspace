@@ -179,8 +179,19 @@ function Import-ProjectsIntoEclipse {
         return
     }
 
-    $cdtFeature = Get-ChildItem -Path (Join-Path $RepoRootPath "portable\eclipse-win\features") -Filter "org.eclipse.cdt.feature_*" -ErrorAction SilentlyContinue
-    if (-not $cdtFeature) {
+    $featuresDir = Join-Path $RepoRootPath "portable\eclipse-win\features"
+    $pluginsDir = Join-Path $RepoRootPath "portable\eclipse-win\plugins"
+    $hasCdtFeature = $false
+    $hasCdtHeadlessPlugin = $false
+
+    if (Test-Path $featuresDir) {
+        $hasCdtFeature = [bool](Get-ChildItem -Path $featuresDir -Filter "org.eclipse.cdt_*" -ErrorAction SilentlyContinue)
+    }
+    if (Test-Path $pluginsDir) {
+        $hasCdtHeadlessPlugin = [bool](Get-ChildItem -Path $pluginsDir -Filter "org.eclipse.cdt.managedbuilder.core_*" -ErrorAction SilentlyContinue)
+    }
+
+    if (-not ($hasCdtFeature -or $hasCdtHeadlessPlugin)) {
         throw "Missing Eclipse CDT feature (org.eclipse.cdt.feature.group). Re-run shared\scripts\bootstrap-portable-eclipse-win11.ps1 so headless project import can work."
     }
 
