@@ -14,7 +14,9 @@ param(
     [string]$SubTargetDir2,
 
     [string]$RepoRoot,
-    [switch]$SkipSync
+    [switch]$SkipSync,
+    [switch]$GenerateEclipseProjects,
+    [switch]$ImportIntoEclipse
 )
 
 $ErrorActionPreference = 'Stop'
@@ -54,6 +56,63 @@ function Add-ManifestEntry {
     $List.Add("$repo|$br|$target") | Out-Null
 }
 
+function Invoke-GradleEclipse {
+    param([string]$RepoPath)
+
+    $gradlew = Join-Path $RepoPath "gradlew.bat"
+    $gradlewSh = Join-Path $RepoPath "gradlew"
+
+    if (Test-Path $gradlew) {
+        Write-Host "Generating Eclipse metadata via gradlew.bat in $RepoPath"
+        & $gradlew "-q" "eclipse"
+        if ($LASTEXITCODE -ne 0) {
+            throw "gradlew.bat eclipse failed in $RepoPath"
+        }
+        return
+    }
+
+    if (Test-Path $gradlewSh) {
+        Write-Host "Generating Eclipse metadata via gradlew in $RepoPath"
+        & bash $gradlewSh "-q" "eclipse"
+        if ($LASTEXITCODE -ne 0) {
+            throw "gradlew eclipse failed in $RepoPath"
+        }
+        return
+    }
+
+    Write-Warning "No Gradle wrapper found in $RepoPath. Skipping Eclipse metadata generation."
+}
+
+function Import-ProjectsIntoEclipse {
+    param(
+        [string]$RepoRootPath,
+        [string]$WorkspacePath
+    )
+
+    $eclipseExe = Join-Path $RepoRootPath "portable\eclipse-win\eclipse.exe"
+    if (-not (Test-Path $eclipseExe)) {
+        throw "Eclipse executable not found: $eclipseExe. Run bootstrap-portable-eclipse-win11.ps1 first."
+    }
+
+    $reposPath = Join-Path $RepoRootPath "portable\repos"
+    if (-not (Test-Path $reposPath)) {
+        throw "Repos path not found: $reposPath"
+    }
+
+    Write-Host "Importing Eclipse projects from $reposPath into workspace $WorkspacePath"
+    $importArgs = @(
+        "-nosplash",
+        "-consoleLog",
+        "-application", "org.eclipse.ui.ide.workbench",
+        "-data", $WorkspacePath,
+        "-importAll", $reposPath
+    )
+    & $eclipseExe @importArgs 2>&1 | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        throw "Eclipse importAll failed with exit code $LASTEXITCODE"
+    }
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = Resolve-RepoRoot -ScriptPath $scriptDir
 $manifestPath = Join-Path $root "repos-manifest.txt"
@@ -79,6 +138,43 @@ if (-not $SkipSync) {
     if ($LASTEXITCODE -ne 0) {
         throw "clone-repos.ps1 failed with exit code $LASTEXITCODE"
     }
+}
+
+if ($GenerateEclipseProjects) {
+    $reposRoot = Join-Path $root "portable\repos"
+
+    $masterDir = if ([string]::IsNullOrWhiteSpace($MasterTargetDir)) {
+        Get-DefaultTargetDir -RepoUrl $MasterRepoUrl
+    } else {
+        $MasterTargetDir.Trim()
+    }
+    $masterPath = Join-Path $reposRoot $masterDir
+    if (-not (Test-Path $masterPath)) {
+        throw "Master repo path not found: $masterPath"
+    }
+    Invoke-GradleEclipse -RepoPath $masterPath
+
+    foreach ($sub in @(
+        @{ Url = $SubRepoUrl1; Target = $SubTargetDir1 },
+        @{ Url = $SubRepoUrl2; Target = $SubTargetDir2 }
+    )) {
+        if ([string]::IsNullOrWhiteSpace($sub.Url)) { continue }
+        $subDir = if ([string]::IsNullOrWhiteSpace($sub.Target)) {
+            Get-DefaultTargetDir -RepoUrl $sub.Url
+        } else {
+            $sub.Target.Trim()
+        }
+        $subPath = Join-Path $reposRoot $subDir
+        if (Test-Path $subPath) {
+            Invoke-GradleEclipse -RepoPath $subPath
+        }
+    }
+}
+
+if ($ImportIntoEclipse) {
+    $workspace = Join-Path $root "portable\workspace"
+    New-Item -ItemType Directory -Force -Path $workspace | Out-Null
+    Import-ProjectsIntoEclipse -RepoRootPath $root -WorkspacePath $workspace
 }
 
 Write-Host "Done. Repositories are managed via: $manifestPath"

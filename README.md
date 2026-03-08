@@ -129,13 +129,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\shared\scripts\setup-proje
   -SubRepoUrl1 "https://github.com/org/config-repo-1.git" `
   -SubBranch1 "main" `
   -SubRepoUrl2 "https://github.com/org/config-repo-2.git" `
-  -SubBranch2 "main"
+  -SubBranch2 "main" `
+  -GenerateEclipseProjects `
+  -ImportIntoEclipse
 ```
 
 Optional:
 
 - `-MasterTargetDir`, `-SubTargetDir1`, `-SubTargetDir2` fuer eigene Zielordner unter `portable\repos`
 - `-SkipSync` wenn nur `repos-manifest.txt` erzeugt werden soll
+- `-GenerateEclipseProjects` fuehrt in geklonten Repos mit Wrapper `gradlew eclipse` aus (generiert `.project/.classpath`)
+- `-ImportIntoEclipse` importiert alle Eclipse-Projekte unter `portable\repos` per `eclipse.exe -importAll` in `portable\workspace`
 - Parametername `SubRepo...` meint hier zusaetzliche, separate Repositories (nicht Gradle-Teilprojekte im Master-Repo).
 
 Hinweis fuer komplexe Gradle-Setups (Multi-/Composite-Builds):
