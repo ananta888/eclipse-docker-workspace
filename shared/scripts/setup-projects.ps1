@@ -146,31 +146,47 @@ function Import-ProjectsIntoEclipse {
         return
     }
 
-    Write-Host "Importing $($projectDirs.Count) Eclipse projects into workspace $WorkspacePath"
-    $importArgs = @(
-        "-nosplash"
-        "-consoleLog"
-        "-application"
-        "org.eclipse.ui.ide.workbench"
-        "-data"
-        $WorkspacePath
-    )
-    foreach ($projectDir in $projectDirs) {
-        $importArgs += @("-import", $projectDir)
+    $projectsStorePath = Join-Path $WorkspacePath ".metadata\.plugins\org.eclipse.core.resources\.projects"
+    $countImportedProjects = {
+        if (-not (Test-Path $projectsStorePath)) { return 0 }
+        return @(
+            Get-ChildItem -Path $projectsStorePath -Directory -ErrorAction SilentlyContinue |
+            Where-Object { -not $_.Name.StartsWith(".") }
+        ).Count
     }
-    $importArgs += @(
-        "-vmargs"
-        "--add-opens=java.base/java.util=ALL-UNNAMED"
-        "--add-opens=java.base/java.lang=ALL-UNNAMED"
-        "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED"
-        "--add-opens=java.base/java.text=ALL-UNNAMED"
-        "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
-    )
 
-    # Use Start-Process so Eclipse stderr log lines do not get promoted to terminating PowerShell errors.
-    $proc = Start-Process -FilePath $eclipseExe -ArgumentList $importArgs -NoNewWindow -Wait -PassThru
-    if ($proc.ExitCode -ne 0) {
-        throw "Eclipse project import failed with exit code $($proc.ExitCode)"
+    $beforeCount = & $countImportedProjects
+    Write-Host "Importing $($projectDirs.Count) Eclipse projects into workspace $WorkspacePath (before: $beforeCount)"
+
+    foreach ($projectDir in $projectDirs) {
+        $importArgs = @(
+            "-nosplash"
+            "-consoleLog"
+            "-application"
+            "org.eclipse.ui.ide.workbench"
+            "-data"
+            $WorkspacePath
+            "-import"
+            $projectDir
+            "-vmargs"
+            "--add-opens=java.base/java.util=ALL-UNNAMED"
+            "--add-opens=java.base/java.lang=ALL-UNNAMED"
+            "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED"
+            "--add-opens=java.base/java.text=ALL-UNNAMED"
+            "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
+        )
+
+        Write-Host "  -> importing $projectDir"
+        $proc = Start-Process -FilePath $eclipseExe -ArgumentList $importArgs -NoNewWindow -Wait -PassThru
+        if ($proc.ExitCode -ne 0) {
+            throw "Eclipse project import failed for '$projectDir' with exit code $($proc.ExitCode)"
+        }
+    }
+
+    $afterCount = & $countImportedProjects
+    Write-Host "Imported projects visible in workspace metadata: $afterCount"
+    if ($afterCount -le 0) {
+        throw "Import completed without registered projects in workspace metadata. Check $WorkspacePath\.metadata\.log"
     }
 }
 
