@@ -140,9 +140,10 @@ function Test-FeatureIUInstalled {
     $patterns = New-Object System.Collections.Generic.List[string]
     $patterns.Add("$featureId_*") | Out-Null
 
-    # Some feature IUs use ".feature.group" while the on-disk feature folder uses a shorter id.
-    if ($featureId -eq 'org.eclipse.cdt.feature') {
-        $patterns.Add("org.eclipse.cdt_*") | Out-Null
+    # Many IUs use "...feature.group" while the on-disk feature id is shorter ("...").
+    if ($featureId.EndsWith('.feature')) {
+        $shortId = $featureId.Substring(0, $featureId.Length - '.feature'.Length)
+        $patterns.Add("$shortId_*") | Out-Null
     }
 
     $matches = @()
@@ -312,8 +313,11 @@ if (-not $SkipPluginInstall) {
     foreach ($iu in $pluginOrder) {
         $alreadyInstalled = Test-FeatureIUInstalled -EclipseHome $eclipseHome -IU $iu
 
-        # Always try installation to avoid false positives in local feature detection.
-        # p2 director is idempotent and will no-op when the IU is already installed.
+        # Keep Saros repair behavior, but skip already-installed non-Saros IUs.
+        if ((-not (Test-IsSarosIU -IU $iu)) -and $alreadyInstalled) {
+            Write-Host "  -> $iu already present in local Eclipse features. Skipping install."
+            continue
+        }
 
         $installed = $false
         $attemptFailures = New-Object System.Collections.Generic.List[string]
