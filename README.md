@@ -61,6 +61,34 @@ http://localhost:6080
 
 ## Typische Workflows
 
+### Windows 11: Portable Eclipse bootstrap (vorkonfiguriert)
+
+PowerShell (empfohlen):
+
+```powershell
+shared\scripts\bootstrap-portable-eclipse-win11.ps1
+```
+
+oder CMD-Wrapper:
+
+```bat
+shared\scripts\bootstrap-portable-eclipse-win11.bat
+```
+
+Das Skript:
+
+- lädt das Eclipse Java Package fuer Windows (Version/Build aus `docker/eclipse/Dockerfile`)
+- entpackt nach `portable/eclipse-win`
+- installiert deklarative Plugins aus `shared/p2/plugins.txt`
+- importiert Preferences aus `shared/prefs/eclipse.epf`
+- kopiert `.launch`-Dateien nach `portable/workspace/.launches`
+
+Starten:
+
+```bat
+portable\start-eclipse-win11.bat
+```
+
 ### Plugins deklarativ installieren
 
 ```bash
