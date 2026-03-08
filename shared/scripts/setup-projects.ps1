@@ -2,15 +2,15 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$MasterRepoUrl,
-    [string]$MasterBranch = "main",
+    [string]$MasterBranch,
     [string]$MasterTargetDir,
 
     [string]$SubRepoUrl1,
-    [string]$SubBranch1 = "main",
+    [string]$SubBranch1,
     [string]$SubTargetDir1,
 
     [string]$SubRepoUrl2,
-    [string]$SubBranch2 = "main",
+    [string]$SubBranch2,
     [string]$SubTargetDir2,
 
     [string]$RepoRoot,
@@ -51,7 +51,7 @@ function Add-ManifestEntry {
     }
 
     $repo = $RepoUrl.Trim()
-    $br = if ([string]::IsNullOrWhiteSpace($Branch)) { "main" } else { $Branch.Trim() }
+    $br = if ([string]::IsNullOrWhiteSpace($Branch)) { "" } else { $Branch.Trim() }
     $target = if ([string]::IsNullOrWhiteSpace($TargetDir)) { Get-DefaultTargetDir -RepoUrl $repo } else { $TargetDir.Trim() }
     $List.Add("$repo|$br|$target") | Out-Null
 }

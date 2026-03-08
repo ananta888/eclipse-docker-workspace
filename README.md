@@ -125,11 +125,8 @@ Ein-Kommando-Setup (Master-Repo + optional 2 Zusatz-Repos, z. B. Config-Repos):
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\shared\scripts\setup-projects.ps1 `
   -MasterRepoUrl "https://github.com/org/master.git" `
-  -MasterBranch "main" `
   -SubRepoUrl1 "https://github.com/org/config-repo-1.git" `
-  -SubBranch1 "main" `
   -SubRepoUrl2 "https://github.com/org/config-repo-2.git" `
-  -SubBranch2 "main" `
   -GenerateEclipseProjects `
   -ImportIntoEclipse
 ```
@@ -137,6 +134,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\shared\scripts\setup-proje
 Optional:
 
 - `-MasterTargetDir`, `-SubTargetDir1`, `-SubTargetDir2` fuer eigene Zielordner unter `portable\repos`
+- `-MasterBranch`, `-SubBranch1`, `-SubBranch2` optional: wenn nicht gesetzt, wird automatisch Branch/Default-Branch (`origin/HEAD`) verwendet
 - `-SkipSync` wenn nur `repos-manifest.txt` erzeugt werden soll
 - `-GenerateEclipseProjects` fuehrt in geklonten Repos mit Wrapper `gradlew eclipse` aus (generiert `.project/.classpath`)
 - `-ImportIntoEclipse` importiert alle Eclipse-Projekte unter `portable\repos` per `eclipse.exe -importAll` in `portable\workspace`
