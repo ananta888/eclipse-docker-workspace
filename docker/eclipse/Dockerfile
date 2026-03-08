@@ -40,6 +40,7 @@ COPY docker/eclipse/scripts/restore-config.sh /usr/local/bin/restore-config.sh
 
 RUN chmod +x /entrypoint.sh /usr/local/bin/backup-config.sh /usr/local/bin/restore-config.sh
 
+USER root
 WORKDIR /home/developer
 
 EXPOSE 6080
