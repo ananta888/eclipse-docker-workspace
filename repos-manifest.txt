@@ -1,0 +1,4 @@
+# Format:
+# <git-url>|<branch>|<target-subdir-under-portable/repos>
+# Example:
+# https://github.com/org/repo-a.git|main|repo-a

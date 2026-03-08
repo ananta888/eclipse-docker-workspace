@@ -1,0 +1,7 @@
+# Format:
+# <git-url>|<branch>|<target-subdir-under-portable/repos>
+# Branch and target-subdir are optional.
+# Examples:
+# https://github.com/acme/backend.git|main|backend
+# https://github.com/acme/frontend.git|develop|frontend
+# https://github.com/acme/shared-lib.git

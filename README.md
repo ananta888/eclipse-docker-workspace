@@ -104,6 +104,60 @@ Empfohlene Trennung in der Portable-Variante:
 - Repositories unter `portable\repos`
 - Eclipse-Workspace unter `portable\workspace`
 
+### State-only Backup (wenig Speicher, wenig Aufwand)
+
+Die Git-Repos bleiben auf GitHub; gesichert wird nur der Eclipse-Zustand (Working Sets, Launches, Server-Configs, Preferences, Repo-Manifest).
+
+Repo-Manifest anlegen:
+
+```powershell
+Copy-Item .\repos-manifest.example.txt .\repos-manifest.txt
+```
+
+Repos aus Manifest klonen/aktualisieren:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\shared\scripts\clone-repos.ps1
+```
+
+Ein-Kommando-Setup (Master + optional 2 Zusatzprojekte):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\shared\scripts\setup-projects.ps1 `
+  -MasterRepoUrl "https://github.com/org/master.git" `
+  -MasterBranch "main" `
+  -SubRepoUrl1 "https://github.com/org/embedded.git" `
+  -SubBranch1 "main" `
+  -SubRepoUrl2 "https://github.com/org/war.git" `
+  -SubBranch2 "main"
+```
+
+Optional:
+
+- `-MasterTargetDir`, `-SubTargetDir1`, `-SubTargetDir2` fuer eigene Zielordner unter `portable\repos`
+- `-SkipSync` wenn nur `repos-manifest.txt` erzeugt werden soll
+
+Hinweis fuer komplexe Gradle-Setups (Multi-/Composite-Builds):
+
+- Das Clone-Skript nutzt `--recurse-submodules` und aktualisiert Submodule rekursiv.
+- Bei Eclipse-Import fuer komplexe Multi-/Composite-Builds:
+  1. `File -> Import -> Gradle -> Existing Gradle Project`
+  2. zuerst den Repository-Root unter `portable\repos\<projekt>` pruefen
+  3. falls nicht alle Teilprojekte sauber auftauchen, die jeweiligen Build-Wurzeln zusaetzlich separat als Gradle-Projekte importieren
+  4. danach `Gradle -> Refresh Gradle Project`
+
+Dev-State sichern:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\shared\scripts\backup-dev-state.ps1
+```
+
+Dev-State wiederherstellen (nimmt automatisch das neueste Backup):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\shared\scripts\restore-dev-state.ps1
+```
+
 ### Windows 11: Docker-Eclipse mit X11 Forwarding (direkte GUI)
 
 1. X-Server auf Windows starten (PowerShell als Administrator):
