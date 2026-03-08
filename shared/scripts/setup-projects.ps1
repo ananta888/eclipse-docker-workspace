@@ -214,6 +214,7 @@ function Import-ProjectsIntoEclipse {
 
         $timeoutSeconds = 40
         $headlessApp = "org.eclipse.cdt.managedbuilder.core.headlessbuild"
+        $headlessFailures = New-Object System.Collections.Generic.List[string]
 
         for ($i = 0; $i -lt $projectDirs.Count; $i++) {
             $projectDir = $projectDirs[$i]
@@ -248,9 +249,17 @@ function Import-ProjectsIntoEclipse {
                 }
             }
 
-            if (-not $timedOut -and $proc.ExitCode -ne 0) {
-                throw "Headless import failed for $projectDir with exit code $($proc.ExitCode)"
+            if (-not $timedOut) {
+                $exitCode = $proc.ExitCode
+                if (($null -ne $exitCode) -and ($exitCode -ne 0)) {
+                    $headlessFailures.Add("$projectDir (exit code $exitCode)") | Out-Null
+                    Write-Warning "Headless import reported non-zero exit code for $projectDir (exit code $exitCode). Continuing with next project."
+                }
             }
+        }
+
+        if ($headlessFailures.Count -gt 0) {
+            Write-Warning ("Headless import completed with {0} project warnings:`n - {1}" -f $headlessFailures.Count, ($headlessFailures -join "`n - "))
         }
     }
     else {
