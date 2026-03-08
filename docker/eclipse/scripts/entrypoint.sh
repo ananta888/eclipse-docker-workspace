@@ -14,7 +14,7 @@ DEVELOPER_USER=${DEVELOPER_USER:-developer}
 DEVELOPER_HOME=${DEVELOPER_HOME:-/home/${DEVELOPER_USER}}
 
 if [ "${USE_HOST_X11}" = "1" ]; then
-  export DISPLAY="${DISPLAY:-${HOST_DISPLAY}}"
+  export DISPLAY="${HOST_DISPLAY}"
 else
   export DISPLAY="${DISPLAY_NUM}"
 fi
