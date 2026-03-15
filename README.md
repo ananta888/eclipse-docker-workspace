@@ -229,6 +229,7 @@ Optional:
 - `--generate-eclipse-projects` fuehrt `gradlew eclipse` in passenden Repo-Wurzeln aus
 - `--import-into-eclipse` fuehrt den Import headless in einem One-Off-Docker-Container aus
 - `--compose-service <name>` falls der Service nicht `eclipse` heisst
+- `--gradle-args <args>` uebergibt zusaetzliche Argumente an `gradlew eclipse`
 - `--folder-project-mode <disabled|marker|auto>` steuert generische Ordnerimporte, Standard ist `marker`
 - `--folder-project-marker <filename>` setzt den Opt-in-Markernamen fuer Ordnerimporte, Standard ist `.eclipse-project-dir`
 - `--repos-dir <path>`, `--workspace-dir <path>` fuer abweichende lokale Pfade
@@ -237,6 +238,24 @@ Hinweis:
 
 - Fuer `--import-into-eclipse` muss `docker compose` verfuegbar sein.
 - Wenn der Eclipse-Service bereits laeuft, wird er fuer den Import kurz gestoppt und danach wieder gestartet.
+
+Empfehlung fuer WSL2:
+
+- Fuer groessere Testlaeufe ist ein Linux-Dateisystempfad wie `/tmp/dev-repos` und `/tmp/dev-workspace` meist robuster und schneller als ein Windows-Mount unter `/mnt/c/...`.
+- Falls ein Repository beim `gradlew eclipse` zusaetzliche fachliche Build-Tasks ausfuehrt, koennen diese ueber `--gradle-args` gezielt ausgeschlossen werden, damit der Eclipse-Metadatenlauf auf Import-relevante Schritte begrenzt bleibt.
+
+Beispiel fuer einen stabilen WSL2-/Docker-Lauf:
+
+```bash
+env WINDOWS_POWERSHELL=/nonexistent ./shared/scripts/setup-projects.sh \
+  --master-repo-url "https://github.com/acme/backend.git" \
+  --sub-repo-url1 "https://github.com/acme/configs.git" \
+  --generate-eclipse-projects \
+  --import-into-eclipse \
+  --folder-project-mode auto \
+  --repos-dir "/tmp/dev-repos" \
+  --workspace-dir "/tmp/dev-workspace"
+```
 
 Saros manuell umschalten:
 
