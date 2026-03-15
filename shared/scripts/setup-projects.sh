@@ -22,7 +22,7 @@ WORKSPACE_DIR="${REPO_ROOT}/portable/workspace"
 ECLIPSE_GRADLE_JAVA_HOME="${ECLIPSE_GRADLE_JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}"
 ECLIPSE_FOLDER_PROJECT_MODE="${ECLIPSE_FOLDER_PROJECT_MODE:-marker}"
 ECLIPSE_FOLDER_PROJECT_MARKER="${ECLIPSE_FOLDER_PROJECT_MARKER:-.eclipse-project-dir}"
-WINDOWS_POWERSHELL="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+WINDOWS_POWERSHELL="${WINDOWS_POWERSHELL:-/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe}"
 
 usage() {
   cat <<'EOF'
@@ -405,12 +405,53 @@ generate_eclipse_metadata_for_repo() {
   local rel_workdir="${workdir#${REPOS_DIR}/}"
   local container_workdir="/repos/${rel_workdir}"
   local gradle_cmd='set -euo pipefail
+resolve_java17_home() {
+  local preferred="'"${ECLIPSE_GRADLE_JAVA_HOME}"'"
+  if [ -x "${preferred}/bin/java" ]; then
+    printf "%s\n" "${preferred}"
+    return 0
+  fi
+
+  local candidate
+  for candidate in \
+    /usr/lib/jvm/java-17-openjdk-amd64 \
+    /usr/lib/jvm/java-1.17.0-openjdk-amd64 \
+    /usr/lib/jvm/temurin-17-jdk-amd64 \
+    /usr/lib/jvm/*17*; do
+    if [ -x "${candidate}/bin/java" ]; then
+      printf "%s\n" "${candidate}"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+ensure_java17() {
+  if resolve_java17_home >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if command -v apt-get >/dev/null 2>&1; then
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y --no-install-recommends openjdk-17-jdk
+    rm -rf /var/lib/apt/lists/*
+  fi
+
+  resolve_java17_home >/dev/null 2>&1
+}
+
+ensure_java17
+JAVA17_HOME="$(resolve_java17_home)"
 cd "'"${container_workdir}"'"
-export JAVA_HOME="'"${ECLIPSE_GRADLE_JAVA_HOME}"'"
+export JAVA_HOME="${JAVA17_HOME}"
 export PATH="${JAVA_HOME}/bin:${PATH}"
-tr -d "\r" < gradlew > /tmp/gradlew-eclipse
-chmod +x /tmp/gradlew-eclipse
-/tmp/gradlew-eclipse -q eclipse'
+tmp_gradlew="$(mktemp "${PWD}/.gradlew-eclipse.XXXXXX")"
+trap '\''rm -f "${tmp_gradlew}"'\'' EXIT
+tr -d "\r" < gradlew > "${tmp_gradlew}"
+chmod +x "${tmp_gradlew}"
+"${tmp_gradlew}" -q eclipse'
 
   echo "Generating Eclipse metadata in container via ${container_workdir}/gradlew using JAVA_HOME=${ECLIPSE_GRADLE_JAVA_HOME}"
   REPOS_DIR="${REPOS_DIR}" docker compose run --rm --no-deps --entrypoint /bin/bash "${COMPOSE_SERVICE}" -lc "${gradle_cmd}"
