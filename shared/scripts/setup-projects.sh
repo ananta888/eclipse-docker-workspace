@@ -447,6 +447,9 @@ JAVA17_HOME="$(resolve_java17_home)"
 cd "'"${container_workdir}"'"
 export JAVA_HOME="${JAVA17_HOME}"
 export PATH="${JAVA_HOME}/bin:${PATH}"
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
+export GRADLE_OPTS="${GRADLE_OPTS:-} -Dfile.encoding=UTF-8"
 tmp_gradlew="$(mktemp "${PWD}/.gradlew-eclipse.XXXXXX")"
 trap '\''rm -f "${tmp_gradlew}"'\'' EXIT
 tr -d "\r" < gradlew > "${tmp_gradlew}"
