@@ -1,0 +1,55 @@
+{
+  "files.autoSave": "onFocusChange",
+  "files.exclude": {
+    "**/.git": true,
+    "**/.gradle": true,
+    "**/build": true,
+    "**/.settings": true,
+    "**/.metadata": true
+  },
+  "search.exclude": {
+    "**/.git": true,
+    "**/.gradle": true,
+    "**/build": true,
+    "**/.settings": true,
+    "**/.metadata": true
+  },
+  "explorer.confirmDragAndDrop": false,
+  "explorer.confirmDelete": false,
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  "workbench.startupEditor": "none",
+  "window.restoreWindows": "one",
+  "editor.minimap.enabled": false,
+  "editor.formatOnSave": false,
+  "editor.formatOnPaste": false,
+  "editor.largeFileOptimizations": true,
+  "extensions.autoCheckUpdates": false,
+  "extensions.autoUpdate": false,
+  "git.autofetch": true,
+  "git.confirmSync": false,
+  "git.openRepositoryInParentFolders": "always",
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-21",
+      "path": "C:\\Program Files\\Eclipse Adoptium\\jdk-21",
+      "default": true
+    }
+  ],
+  "java.import.gradle.enabled": true,
+  "java.import.gradle.wrapper.enabled": true,
+  "java.import.gradle.java.home": "C:\\Program Files\\Eclipse Adoptium\\jdk-21",
+  "java.import.maven.enabled": true,
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "java.compile.nullAnalysis.mode": "automatic",
+  "java.references.includeDecompiledSources": true,
+  "spring-boot.ls.java.home": "C:\\Program Files\\Eclipse Adoptium\\jdk-21",
+  "yaml.format.enable": true,
+  "xml.format.enabled": true,
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/.gradle/**": true,
+    "**/build/**": true,
+    "**/.metadata/**": true
+  }
+}

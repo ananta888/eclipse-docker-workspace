@@ -1,16 +1,18 @@
-# Reproduzierbare Eclipse-Entwicklungsumgebung
+# Reproduzierbare Entwicklungsumgebung
 
 ## Ziel
 
-Dieses Repository stellt eine einheitliche, deklarative Eclipse-Konfigurationsbasis bereit, die in drei Varianten genutzt werden kann:
+Dieses Repository stellt eine einheitliche, deklarative Entwicklungsbasis bereit, die in mehreren Varianten genutzt werden kann:
 
 1. lokale portable Eclipse
-2. klassische Eclipse im Docker-Container mit Browserzugriff
-3. optionale Eclipse-Che-Umgebung für browserbasiertes Team-Setup
+2. lokale portable VSCodium-Installation fuer Windows 11
+3. klassische Eclipse im Docker-Container mit Browserzugriff
+4. OpenVSCode Server als einfache, offene VS-Code-Oberflaeche im Docker-Container
+5. optionale Eclipse-Che-Umgebung für browserbasiertes Team-Setup
 
 ## Gesamtidee
 
-`shared/` ist die zentrale Quelle für Plugins, Preferences, Launch-Dateien und Setup-Definitionen. Sowohl portable Eclipse als auch Container-Eclipse verwenden diese gemeinsame Basis.
+`shared/` ist die zentrale Quelle für Eclipse-Plugins, Preferences, Launch-Dateien und Setup-Definitionen. Die VSCodium-Variante nutzt zusaetzlich `shared/vscode` fuer portable Settings und optionale Extensions.
 
 ## Varianten im Vergleich
 
@@ -20,11 +22,23 @@ Dieses Repository stellt eine einheitliche, deklarative Eclipse-Konfigurationsba
 - nutzt dieselben `shared/`-Definitionen
 - kann als Archiv paketiert und verteilt werden
 
+### Lokale portable VSCodium-Installation
+
+- native Windows-11-Variante mit lokalem Portable-Mode
+- Open-Source-Basis statt Microsoft-Build
+- nutzt dieselben `portable/repos` wie die anderen Varianten
+
 ### Eclipse im Docker-Container
 
 - vollständige Desktop-Eclipse im Container
 - Zugriff über noVNC im Browser (`http://localhost:6080`)
 - gleiche Shared-Konfiguration via Volumes
+
+### OpenVSCode Server im Docker-Container
+
+- schlanke, browserbasierte VS-Code-Oberflaeche
+- basiert auf dem Open-Source-Projekt `gitpod/openvscode-server`
+- nutzt dieselben `repos/`, `portable/workspace` und `shared/`-Volumes
 
 ### Eclipse Che (optional)
 
@@ -38,6 +52,7 @@ Dieses Repository stellt eine einheitliche, deklarative Eclipse-Konfigurationsba
 .
 ├─ docker-compose.saros.yml
 ├─ shared/
+├─ shared/vscode/
 ├─ docker/eclipse/
 ├─ docker/saros/
 ├─ portable/
@@ -66,6 +81,25 @@ Falls ein Verzeichnislisting erscheint, direkt noVNC öffnen:
 
 ```text
 http://localhost:6080/vnc.html?autoconnect=1&resize=remote
+```
+
+## Schnellstart (OpenVSCode Server)
+
+```bash
+cp .env.example .env
+docker compose --profile vscode up -d vscode
+```
+
+Danach im Browser öffnen:
+
+```text
+http://localhost:3000
+```
+
+Optional beide Oberflaechen parallel starten:
+
+```bash
+docker compose --profile vscode up -d eclipse vscode
 ```
 
 ## Typische Workflows
@@ -103,6 +137,42 @@ Empfohlene Trennung in der Portable-Variante:
 
 - Repositories unter `portable\repos`
 - Eclipse-Workspace unter `portable\workspace`
+
+### Windows 11: Portable VSCodium bootstrap
+
+PowerShell:
+
+```powershell
+shared\scripts\bootstrap-portable-vscodium-win11.ps1
+```
+
+oder CMD-Wrapper:
+
+```bat
+shared\scripts\bootstrap-portable-vscodium-win11.bat
+```
+
+Das Skript:
+
+- laedt die aktuelle oder angeforderte VSCodium-Windows-ZIP aus den GitHub-Releases
+- entpackt nach `portable/vscodium-win`
+- aktiviert den Portable-Mode ueber `portable/vscodium-win/data`
+- legt `portable/workspace-vscodium` als separaten Editor-Workspace an
+- uebernimmt Standard-Settings aus `shared/vscode/settings.json`
+- erkennt nach Moeglichkeit automatisch ein installiertes Java 21 unter Windows und schreibt den Pfad in die portable VSCodium-Konfiguration
+- installiert optional Extensions aus `shared/vscode/extensions.txt`
+
+Starten:
+
+```bat
+portable\start-vscodium-win11.bat
+```
+
+Empfohlene Trennung:
+
+- Repositories unter `portable\repos`
+- VSCodium-Workspace unter `portable\workspace-vscodium`
+- Eclipse-Workspace weiter separat unter `portable\workspace`
 
 ### State-only Backup (wenig Speicher, wenig Aufwand)
 

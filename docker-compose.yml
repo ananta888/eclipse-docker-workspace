@@ -27,3 +27,27 @@ services:
       - ${SHARED_DIR:-./shared}:/shared
       - ${BACKUP_DIR:-./backup}:/backup
     restart: unless-stopped
+
+  vscode:
+    image: gitpod/openvscode-server:${OPENVSCODE_IMAGE_TAG:-latest}
+    container_name: openvscode-server
+    profiles:
+      - vscode
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+    ports:
+      - "${OPENVSCODE_PORT:-3000}:3000"
+    volumes:
+      - ${REPOS_DIR:-./repos}:/repos
+      - ${WORKSPACE_DIR:-./portable/workspace}:/workspace
+      - ${SHARED_DIR:-./shared}:/shared
+      - ${VSCODE_HOME_DIR:-./vscode-data/home}:/home/openvscode-server
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - "3000"
+      - --without-connection-token
+      - --workspace-folder
+      - /workspace
+    restart: unless-stopped

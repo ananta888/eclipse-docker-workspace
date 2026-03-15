@@ -19,9 +19,16 @@ gradle-app.setting
 .project
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
-/portable/
+/portable/*
+/portable/cache/
+/portable/eclipse-win/
+/portable/repos/
+/portable/vscodium-win/
+/portable/workspace/
+/portable/workspace-vscodium/
 /.idea/
 .env
 /eclipse-data/
-/portable/workspace/
 /bootstrap.log
+!/portable/start-eclipse-win11.bat
+!/portable/start-vscodium-win11.bat

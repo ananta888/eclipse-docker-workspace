@@ -1,0 +1,11 @@
+# Default Open VSX extension IDs for portable VSCodium.
+# Focused on this workspace: Java, Gradle, Spring Boot, Git, YAML/XML.
+redhat.java
+vscjava.vscode-java-debug
+vscjava.vscode-java-test
+vscjava.vscode-maven
+vscjava.vscode-gradle
+vmware.vscode-boot-dev-pack
+redhat.vscode-xml
+redhat.vscode-yaml
+mhutchie.git-graph
