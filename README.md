@@ -335,7 +335,7 @@ Troubleshooting (Java 21 / Saros):
 - Falls Saros dennoch mit `InaccessibleObjectException` fehlschlaegt:
   1. Container neu bauen/starten: `docker compose up -d --build --force-recreate`
   2. Pruefen, ob die VM-Args aktiv sind:
-     `docker exec eclipse-classic bash -lc 'tr "\0" " " < /proc/1/cmdline'`
+     `docker exec eclipse-desktop bash -lc 'tr "\0" " " < /proc/1/cmdline'`
   3. Erwartete Schalter:
      `--add-opens=java.base/java.util=ALL-UNNAMED`
      `--add-opens=java.base/java.lang=ALL-UNNAMED`
@@ -454,8 +454,8 @@ shared/scripts/package-portable-eclipse.sh
 Im Container:
 
 ```bash
-docker exec -it eclipse-classic backup-config.sh
-docker exec -it eclipse-classic restore-config.sh /backup/eclipse-home-YYYYMMDD-HHMMSS.tar.gz
+docker exec -it eclipse-desktop backup-config.sh
+docker exec -it eclipse-desktop restore-config.sh /backup/eclipse-home-YYYYMMDD-HHMMSS.tar.gz
 ```
 
 ## Plugin-Management

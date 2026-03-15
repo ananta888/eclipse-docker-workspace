@@ -3,8 +3,8 @@ services:
     build:
       context: .
       dockerfile: docker/eclipse/Dockerfile
-    image: eclipse-classic:${ECLIPSE_IMAGE_TAG:-latest}
-    container_name: eclipse-classic
+    image: eclipse-desktop:${ECLIPSE_IMAGE_TAG:-latest}
+    container_name: eclipse-desktop
     shm_size: 2g
     user: "0:0"
     environment:
@@ -30,7 +30,7 @@ services:
 
   vscode:
     image: gitpod/openvscode-server:${OPENVSCODE_IMAGE_TAG:-latest}
-    container_name: openvscode-server
+    container_name: vscode-web
     profiles:
       - vscode
     environment:
