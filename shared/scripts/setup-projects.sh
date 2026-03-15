@@ -19,6 +19,10 @@ IMPORT_INTO_ECLIPSE=0
 COMPOSE_SERVICE="eclipse"
 REPOS_DIR="${REPO_ROOT}/portable/repos"
 WORKSPACE_DIR="${REPO_ROOT}/portable/workspace"
+ECLIPSE_GRADLE_JAVA_HOME="${ECLIPSE_GRADLE_JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}"
+ECLIPSE_FOLDER_PROJECT_MODE="${ECLIPSE_FOLDER_PROJECT_MODE:-marker}"
+ECLIPSE_FOLDER_PROJECT_MARKER="${ECLIPSE_FOLDER_PROJECT_MARKER:-.eclipse-project-dir}"
+WINDOWS_POWERSHELL="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 
 usage() {
   cat <<'EOF'
@@ -37,6 +41,8 @@ Usage:
     [--generate-eclipse-projects] \
     [--import-into-eclipse] \
     [--compose-service <name>] \
+    [--folder-project-mode <disabled|marker|auto>] \
+    [--folder-project-marker <filename>] \
     [--repos-dir <path>] \
     [--workspace-dir <path>]
 EOF
@@ -60,6 +66,210 @@ write_manifest() {
     [[ -n "${SUB_REPO_URL2}" ]] && echo "${SUB_REPO_URL2}|${SUB_BRANCH2}|${SUB_TARGET_DIR2}"
   } > "${manifest_path}"
   echo "Manifest written: ${manifest_path}"
+}
+
+project_name_from_path() {
+  basename "$1"
+}
+
+find_gradlew_in_repo() {
+  local repo_path="$1"
+  local gradlew=""
+
+  if [[ -f "${repo_path}/gradlew" ]]; then
+    gradlew="${repo_path}/gradlew"
+  else
+    local child
+    while IFS= read -r -d '' child; do
+      gradlew="${child}"
+      break
+    done < <(find "${repo_path}" -mindepth 2 -maxdepth 2 -type f -name gradlew -print0 2>/dev/null)
+  fi
+
+  printf '%s\n' "${gradlew}"
+}
+
+find_windows_java17_home() {
+  local candidates=(
+    'C:\Program Files\Eclipse Adoptium\jdk-17.0.18.8-hotspot'
+    'C:\Program Files\Eclipse Adoptium\jdk-17'
+    'C:\Program Files\AdoptOpenJDK\jdk-17'
+    'C:\Program Files\Microsoft\jdk-17'
+    'C:\Program Files\Java\jdk-17'
+  )
+
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [ -d "$(wslpath -u "${candidate}" 2>/dev/null || true)" ]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+run_gradlew_on_windows() {
+  local workdir="$1"
+
+  if [[ ! "${workdir}" =~ ^/mnt/[a-zA-Z]/ ]]; then
+    return 1
+  fi
+  if [[ ! -x "${WINDOWS_POWERSHELL}" ]]; then
+    return 1
+  fi
+
+  local java_home_win=""
+  java_home_win="$(find_windows_java17_home || true)"
+  if [[ -z "${java_home_win}" ]]; then
+    return 1
+  fi
+
+  local workdir_win
+  workdir_win="$(wslpath -w "${workdir}")"
+  local ps_cmd
+  printf -v ps_cmd '$env:JAVA_HOME='\'%s\''; $env:Path="$env:JAVA_HOME\bin;" + $env:Path; Set-Location '\''%s'\''; cmd /c gradlew.bat -q eclipse' "${java_home_win}" "${workdir_win}"
+
+  echo "Generating Eclipse metadata on Windows via ${workdir_win}\\gradlew.bat using JAVA_HOME=${java_home_win}"
+  "${WINDOWS_POWERSHELL}" -NoProfile -Command "${ps_cmd}"
+}
+
+ensure_buildship_project_file() {
+  local project_dir="$1"
+  local project_name="$2"
+  local comment="$3"
+  local project_file="${project_dir}/.project"
+
+  if [[ -f "${project_file}" ]]; then
+    return
+  fi
+
+  cat > "${project_file}" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
+	<name>${project_name}</name>
+	<comment>${comment}</comment>
+	<projects/>
+	<natures>
+		<nature>org.eclipse.buildship.core.gradleprojectnature</nature>
+		<nature>net.sf.eclipsecs.core.CheckstyleNature</nature>
+	</natures>
+	<buildSpec>
+		<buildCommand>
+			<name>org.eclipse.buildship.core.gradleprojectbuilder</name>
+			<arguments/>
+		</buildCommand>
+		<buildCommand>
+			<name>net.sf.eclipsecs.core.CheckstyleBuilder</name>
+			<arguments/>
+		</buildCommand>
+	</buildSpec>
+	<linkedResources/>
+	<filteredResources/>
+</projectDescription>
+EOF
+  echo "Created fallback .project for ${project_name}: ${project_file}"
+}
+
+ensure_basic_project_file() {
+  local project_dir="$1"
+  local project_name="$2"
+  local comment="$3"
+
+  cat > "${project_dir}/.project" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
+	<name>${project_name}</name>
+	<comment>${comment}</comment>
+	<projects/>
+	<buildSpec/>
+	<natures/>
+	<linkedResources/>
+	<filteredResources/>
+</projectDescription>
+EOF
+}
+
+ensure_gradle_root_project_files() {
+  local repo_path="$1"
+  local generated=1
+  local settings_file
+
+  while IFS= read -r -d '' settings_file; do
+    local project_dir
+    local project_name
+    project_dir="$(dirname "${settings_file}")"
+    project_name="$(basename "${project_dir}")"
+    if [[ ! -f "${project_dir}/.project" ]]; then
+      ensure_buildship_project_file "${project_dir}" "${project_name}" "Gradle root project"
+      generated=0
+    fi
+  done < <(find "${repo_path}" -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print0 2>/dev/null)
+
+  return "${generated}"
+}
+
+directory_contains_files() {
+  local project_dir="$1"
+  find "${project_dir}" \
+    -mindepth 1 \
+    -maxdepth 2 \
+    -type f \
+    ! -name .project \
+    ! -path '*/.git/*' \
+    ! -path '*/.gradle/*' \
+    -print -quit 2>/dev/null | grep -q .
+}
+
+directory_is_opted_in_project() {
+  local project_dir="$1"
+
+  case "${ECLIPSE_FOLDER_PROJECT_MODE}" in
+    disabled)
+      return 1
+      ;;
+    marker)
+      [[ -f "${project_dir}/${ECLIPSE_FOLDER_PROJECT_MARKER}" ]]
+      ;;
+    auto)
+      directory_contains_files "${project_dir}"
+      ;;
+    *)
+      echo "ERROR: Unsupported folder project mode '${ECLIPSE_FOLDER_PROJECT_MODE}'. Use disabled, marker, or auto." >&2
+      exit 1
+      ;;
+  esac
+}
+
+ensure_top_level_directory_projects() {
+  local repo_path="$1"
+  local generated=1
+  local project_dir
+
+  while IFS= read -r -d '' project_dir; do
+    local project_name
+    project_name="$(basename "${project_dir}")"
+    if [[ -f "${project_dir}/.project" ]]; then
+      continue
+    fi
+    if directory_is_opted_in_project "${project_dir}"; then
+      ensure_basic_project_file "${project_dir}" "${project_name}" "Imported folder project"
+      echo "Created folder .project for ${project_name}: ${project_dir}/.project"
+      generated=0
+    fi
+  done < <(find "${repo_path}" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print0 2>/dev/null)
+
+  return "${generated}"
+}
+
+ensure_generic_project_files() {
+  local repo_path="$1"
+
+  ensure_gradle_root_project_files "${repo_path}" || true
+
+  if ! find "${repo_path}" -type f -name .project -print -quit 2>/dev/null | grep -q .; then
+    ensure_top_level_directory_projects "${repo_path}" || true
+  fi
 }
 
 branch_exists_local() {
@@ -177,26 +387,34 @@ clone_or_update_repo() {
 generate_eclipse_metadata_for_repo() {
   local repo_path="$1"
   local gradlew=""
-
-  if [[ -x "${repo_path}/gradlew" ]]; then
-    gradlew="${repo_path}/gradlew"
-  else
-    local child
-    while IFS= read -r -d '' child; do
-      gradlew="${child}"
-      break
-    done < <(find "${repo_path}" -mindepth 2 -maxdepth 2 -type f -name gradlew -perm -u+x -print0 2>/dev/null)
-  fi
+  gradlew="$(find_gradlew_in_repo "${repo_path}")"
 
   if [[ -z "${gradlew}" ]]; then
-    echo "WARN: No executable gradlew found in ${repo_path}. Skipping Eclipse metadata generation."
+    echo "WARN: No gradlew found in ${repo_path}. Skipping Gradle metadata generation."
+    ensure_generic_project_files "${repo_path}"
     return
   fi
 
   local workdir
   workdir="$(dirname "${gradlew}")"
-  echo "Generating Eclipse metadata via ${gradlew}"
-  (cd "${workdir}" && ./gradlew -q eclipse)
+  if run_gradlew_on_windows "${workdir}"; then
+    ensure_generic_project_files "${repo_path}"
+    return
+  fi
+
+  local rel_workdir="${workdir#${REPOS_DIR}/}"
+  local container_workdir="/repos/${rel_workdir}"
+  local gradle_cmd='set -euo pipefail
+cd "'"${container_workdir}"'"
+export JAVA_HOME="'"${ECLIPSE_GRADLE_JAVA_HOME}"'"
+export PATH="${JAVA_HOME}/bin:${PATH}"
+tr -d "\r" < gradlew > /tmp/gradlew-eclipse
+chmod +x /tmp/gradlew-eclipse
+/tmp/gradlew-eclipse -q eclipse'
+
+  echo "Generating Eclipse metadata in container via ${container_workdir}/gradlew using JAVA_HOME=${ECLIPSE_GRADLE_JAVA_HOME}"
+  REPOS_DIR="${REPOS_DIR}" docker compose run --rm --no-deps --entrypoint /bin/bash "${COMPOSE_SERVICE}" -lc "${gradle_cmd}"
+  ensure_generic_project_files "${repo_path}"
 }
 
 run_docker_import() {
@@ -205,10 +423,6 @@ run_docker_import() {
   mkdir -p "${egit_hidden}"
   local list_file="${WORKSPACE_DIR}/.eclipse-import-paths.txt"
   local imported_file="${WORKSPACE_DIR}/.eclipse-import-projects.txt"
-
-  project_name_from_path() {
-    basename "$1"
-  }
 
   collect_workspace_project_names() {
     local projects_dir="${WORKSPACE_DIR}/.metadata/.plugins/org.eclipse.core.resources/.projects"
@@ -361,6 +575,8 @@ while [[ $# -gt 0 ]]; do
     --generate-eclipse-projects) GENERATE_ECLIPSE_PROJECTS=1; shift;;
     --import-into-eclipse) IMPORT_INTO_ECLIPSE=1; shift;;
     --compose-service) COMPOSE_SERVICE="$2"; shift 2;;
+    --folder-project-mode) ECLIPSE_FOLDER_PROJECT_MODE="$2"; shift 2;;
+    --folder-project-marker) ECLIPSE_FOLDER_PROJECT_MARKER="$2"; shift 2;;
     --repos-dir) REPOS_DIR="$2"; shift 2;;
     --workspace-dir) WORKSPACE_DIR="$2"; shift 2;;
     -h|--help) usage; exit 0;;

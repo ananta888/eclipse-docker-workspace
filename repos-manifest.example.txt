@@ -1,6 +1,8 @@
 # Format:
 # <git-url>|<branch>|<target-subdir-under-portable/repos>
 # Branch and target-subdir are optional.
+# Generic folder-based Eclipse projects are opt-in via a marker file in the repo,
+# by default named .eclipse-project-dir in each top-level folder to import.
 # Examples:
 # https://github.com/acme/backend.git|main|backend
 # https://github.com/acme/frontend.git|develop|frontend

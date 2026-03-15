@@ -218,8 +218,8 @@ Clone/Update + optional Eclipse-Import direkt per Bash:
 
 ```bash
 ./shared/scripts/setup-projects.sh \
-  --master-repo-url "https://github.com/Geograt/gisx3-server.git" \
-  --sub-repo-url1 "https://github.com/Geograt/gisx3-configs.git" \
+  --master-repo-url "https://github.com/acme/backend.git" \
+  --sub-repo-url1 "https://github.com/acme/configs.git" \
   --import-into-eclipse
 ```
 
@@ -229,6 +229,8 @@ Optional:
 - `--generate-eclipse-projects` fuehrt `gradlew eclipse` in passenden Repo-Wurzeln aus
 - `--import-into-eclipse` fuehrt den Import headless in einem One-Off-Docker-Container aus
 - `--compose-service <name>` falls der Service nicht `eclipse` heisst
+- `--folder-project-mode <disabled|marker|auto>` steuert generische Ordnerimporte, Standard ist `marker`
+- `--folder-project-marker <filename>` setzt den Opt-in-Markernamen fuer Ordnerimporte, Standard ist `.eclipse-project-dir`
 - `--repos-dir <path>`, `--workspace-dir <path>` fuer abweichende lokale Pfade
 
 Hinweis:
@@ -467,6 +469,14 @@ Die Plugin-Liste liegt in `shared/p2/plugins.txt` im Format `Repository|Installa
 - `ECLIPSE_HOME_DIR` (default `./eclipse-data/home`) -> `/home/developer` fuer Eclipse-Userdaten
 - `SHARED_DIR` (default `./shared`) -> `/shared` fuer teamweite deklarative Konfiguration
 - `BACKUP_DIR` (default `./backup`) -> `/backup` fuer Backups
+
+## Reproduzierbarer Eclipse-Import
+
+- Das Eclipse-Docker-Image enthaelt Java 21 fuer Eclipse selbst und zusaetzlich Java 17 fuer `gradlew eclipse`.
+- `shared/scripts/setup-projects.sh --generate-eclipse-projects --import-into-eclipse` erzeugt Eclipse-Metadaten fuer Gradle-Repos im Container oder unter Windows mit Java 17.
+- Wenn ein Gradle-Root-Verzeichnis ueber `settings.gradle` oder `settings.gradle.kts` erkannt wird, aber keine `.project`-Datei hat, wird generisch eine Buildship-Root-`.project` als Fallback erzeugt.
+- Wenn ein Repository keine Gradle-Wrapper- oder Eclipse-Projektdateien besitzt, werden generische Ordnerprojekte standardmaessig nur fuer Top-Level-Ordner mit Markerdatei `.eclipse-project-dir` erzeugt.
+- Fuer breitere Erkennung kann der Ordner-Fallback bewusst auf `--folder-project-mode auto` umgestellt oder mit `--folder-project-mode disabled` komplett abgeschaltet werden.
 
 ## Preference-Management
 

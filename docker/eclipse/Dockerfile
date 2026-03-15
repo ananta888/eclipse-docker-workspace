@@ -8,6 +8,7 @@ ENV ECLIPSE_PACKAGE=eclipse-java-${ECLIPSE_VERSION}-${ECLIPSE_BUILD}-linux-gtk-x
 ENV ECLIPSE_URL=https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/${ECLIPSE_VERSION}/${ECLIPSE_BUILD}/${ECLIPSE_PACKAGE}&r=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    openjdk-17-jdk \
     openjdk-21-jdk \
     ca-certificates \
     wget \
@@ -25,6 +26,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rsync \
     gosu \
     && rm -rf /var/lib/apt/lists/*
+
+ENV ECLIPSE_GRADLE_JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 
 # Make noVNC root URL serve the client directly.
 RUN ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html
