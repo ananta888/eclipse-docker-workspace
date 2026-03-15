@@ -20,6 +20,7 @@ COMPOSE_SERVICE="eclipse"
 REPOS_DIR="${REPO_ROOT}/portable/repos"
 WORKSPACE_DIR="${REPO_ROOT}/portable/workspace"
 ECLIPSE_GRADLE_JAVA_HOME="${ECLIPSE_GRADLE_JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}"
+ECLIPSE_GRADLE_ARGS="${ECLIPSE_GRADLE_ARGS:-}"
 ECLIPSE_FOLDER_PROJECT_MODE="${ECLIPSE_FOLDER_PROJECT_MODE:-marker}"
 ECLIPSE_FOLDER_PROJECT_MARKER="${ECLIPSE_FOLDER_PROJECT_MARKER:-.eclipse-project-dir}"
 WINDOWS_POWERSHELL="${WINDOWS_POWERSHELL:-/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe}"
@@ -41,6 +42,7 @@ Usage:
     [--generate-eclipse-projects] \
     [--import-into-eclipse] \
     [--compose-service <name>] \
+    [--gradle-args <args>] \
     [--folder-project-mode <disabled|marker|auto>] \
     [--folder-project-marker <filename>] \
     [--repos-dir <path>] \
@@ -454,7 +456,11 @@ tmp_gradlew="$(mktemp "${PWD}/.gradlew-eclipse.XXXXXX")"
 trap '\''rm -f "${tmp_gradlew}"'\'' EXIT
 tr -d "\r" < gradlew > "${tmp_gradlew}"
 chmod +x "${tmp_gradlew}"
-"${tmp_gradlew}" -q eclipse'
+if [ -n "'"${ECLIPSE_GRADLE_ARGS}"'" ]; then
+  eval "\"${tmp_gradlew}\" -q eclipse '"${ECLIPSE_GRADLE_ARGS}"'"
+else
+  "${tmp_gradlew}" -q eclipse
+fi'
 
   echo "Generating Eclipse metadata in container via ${container_workdir}/gradlew using JAVA_HOME=${ECLIPSE_GRADLE_JAVA_HOME}"
   REPOS_DIR="${REPOS_DIR}" docker compose run --rm --no-deps --entrypoint /bin/bash "${COMPOSE_SERVICE}" -lc "${gradle_cmd}"
@@ -619,6 +625,7 @@ while [[ $# -gt 0 ]]; do
     --generate-eclipse-projects) GENERATE_ECLIPSE_PROJECTS=1; shift;;
     --import-into-eclipse) IMPORT_INTO_ECLIPSE=1; shift;;
     --compose-service) COMPOSE_SERVICE="$2"; shift 2;;
+    --gradle-args) ECLIPSE_GRADLE_ARGS="$2"; shift 2;;
     --folder-project-mode) ECLIPSE_FOLDER_PROJECT_MODE="$2"; shift 2;;
     --folder-project-marker) ECLIPSE_FOLDER_PROJECT_MARKER="$2"; shift 2;;
     --repos-dir) REPOS_DIR="$2"; shift 2;;
