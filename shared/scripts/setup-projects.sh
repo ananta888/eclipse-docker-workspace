@@ -541,7 +541,8 @@ while IFS= read -r p; do
 done < /workspace/.eclipse-import-paths.txt'
 
   echo "Running headless Eclipse import in one Docker run..."
-  docker compose run --rm --no-deps --entrypoint /bin/bash -e USE_HOST_X11=0 "${COMPOSE_SERVICE}" -lc "${headless_cmd}"
+  REPOS_DIR="${REPOS_DIR}" WORKSPACE_DIR="${WORKSPACE_DIR}" \
+    docker compose run --rm --no-deps --entrypoint /bin/bash -e USE_HOST_X11=0 "${COMPOSE_SERVICE}" -lc "${headless_cmd}"
 
   local expected_names
   local workspace_names
@@ -589,7 +590,8 @@ export DISPLAY=:99
 timeout 60 /opt/eclipse/eclipse -nosplash -application org.eclipse.cdt.managedbuilder.core.headlessbuild -data /workspace -import "/repos/'"${rel_missing}"'"'
 
       echo "Retrying missing project import: ${missing_name}"
-      docker compose run --rm --no-deps --entrypoint /bin/bash -e USE_HOST_X11=0 "${COMPOSE_SERVICE}" -lc "${single_import_cmd}"
+      REPOS_DIR="${REPOS_DIR}" WORKSPACE_DIR="${WORKSPACE_DIR}" \
+        docker compose run --rm --no-deps --entrypoint /bin/bash -e USE_HOST_X11=0 "${COMPOSE_SERVICE}" -lc "${single_import_cmd}"
     done <<< "${missing_names}"
 
     workspace_names="$(collect_workspace_project_names)"
