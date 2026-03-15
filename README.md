@@ -248,7 +248,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\shared\scripts\toggle-saro
 Hinweis fuer komplexe Gradle-Setups (Multi-/Composite-Builds):
 
 - Das Clone-Skript nutzt `--recurse-submodules` und aktualisiert Submodule rekursiv.
-- Gradle-Teilprojekte wie `embedded`/`war` im Master-Repo sind keine Zusatz-Repos und werden ueber Gradle-Import geladen.
+- Gradle-Teilprojekte innerhalb eines Repositorys sind keine Zusatz-Repos und werden ueber Gradle-Import geladen.
 - Bei Eclipse-Import fuer komplexe Multi-/Composite-Builds:
   1. `File -> Import -> Gradle -> Existing Gradle Project`
   2. zuerst den Repository-Root unter `portable\repos\<projekt>` pruefen
