@@ -21,7 +21,7 @@ services:
     ports:
       - "${NOVNC_PORT:-6080}:6080"
     volumes:
-      - ${REPOS_DIR:-./repos}:/repos
+      - ${REPOS_DIR:-./portable/repos}:/repos
       - ${WORKSPACE_DIR:-./portable/workspace}:/workspace
       - ${ECLIPSE_HOME_DIR:-./eclipse-data/home}:/home/developer
       - ${SHARED_DIR:-./shared}:/shared
@@ -38,7 +38,7 @@ services:
     ports:
       - "${OPENVSCODE_PORT:-3000}:3000"
     volumes:
-      - ${REPOS_DIR:-./repos}:/repos
+      - ${REPOS_DIR:-./portable/repos}:/repos
       - ${WORKSPACE_DIR:-./portable/workspace}:/workspace
       - ${SHARED_DIR:-./shared}:/shared
       - ${VSCODE_HOME_DIR:-./vscode-data/home}:/home/openvscode-server

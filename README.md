@@ -462,7 +462,7 @@ Die Plugin-Liste liegt in `shared/p2/plugins.txt` im Format `Repository|Installa
 
 ## Datenablage (Container-Mounts)
 
-- `REPOS_DIR` (default `./repos`) -> `/repos` fuer Git-Repositories
+- `REPOS_DIR` (default `./portable/repos`) -> `/repos` fuer Git-Repositories
 - `WORKSPACE_DIR` (default `./portable/workspace`) -> `/workspace` fuer Eclipse-Workspace
 - `ECLIPSE_HOME_DIR` (default `./eclipse-data/home`) -> `/home/developer` fuer Eclipse-Userdaten
 - `SHARED_DIR` (default `./shared`) -> `/shared` fuer teamweite deklarative Konfiguration

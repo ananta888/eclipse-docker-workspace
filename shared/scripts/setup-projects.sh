@@ -17,7 +17,7 @@ SKIP_SYNC=0
 GENERATE_ECLIPSE_PROJECTS=0
 IMPORT_INTO_ECLIPSE=0
 COMPOSE_SERVICE="eclipse"
-REPOS_DIR="${REPO_ROOT}/repos"
+REPOS_DIR="${REPO_ROOT}/portable/repos"
 WORKSPACE_DIR="${REPO_ROOT}/portable/workspace"
 
 usage() {
@@ -204,15 +204,42 @@ run_docker_import() {
   local egit_hidden="${WORKSPACE_DIR}/.metadata/.plugins/org.eclipse.core.resources/.projects/.org.eclipse.egit.core.cmp"
   mkdir -p "${egit_hidden}"
   local list_file="${WORKSPACE_DIR}/.eclipse-import-paths.txt"
+  local imported_file="${WORKSPACE_DIR}/.eclipse-import-projects.txt"
+
+  project_name_from_path() {
+    basename "$1"
+  }
+
+  collect_workspace_project_names() {
+    local projects_dir="${WORKSPACE_DIR}/.metadata/.plugins/org.eclipse.core.resources/.projects"
+    if [[ ! -d "${projects_dir}" ]]; then
+      return
+    fi
+    find "${projects_dir}" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' \
+      | grep -v '^\.' \
+      | sort -u
+  }
+
+  collect_expected_project_paths() {
+    find "${REPOS_DIR}" -type f -name .project -printf '%h\n' | sort -u
+  }
+
+  missing_workspace_projects() {
+    local expected_list="$1"
+    local workspace_list="$2"
+    comm -23 <(printf '%s\n' "${expected_list}" | sed '/^$/d' | sort -u) <(printf '%s\n' "${workspace_list}" | sed '/^$/d' | sort -u)
+  }
 
   local import_count=0
   : > "${list_file}"
+  : > "${imported_file}"
   local host_real
   host_real="$(cd "${REPOS_DIR}" && pwd)"
-  mapfile -t host_project_dirs < <(find "${REPOS_DIR}" -type f -name .project -printf "%h\n" | sort -u)
+  mapfile -t host_project_dirs < <(collect_expected_project_paths)
   for project_dir in "${host_project_dirs[@]}"; do
     local rel="${project_dir#${host_real}/}"
     printf '/repos/%s\n' "${rel}" >> "${list_file}"
+    printf '%s\n' "$(project_name_from_path "${project_dir}")" >> "${imported_file}"
     import_count=$((import_count + 1))
   done
 
@@ -226,10 +253,94 @@ run_docker_import() {
   echo "Stopping compose service '${COMPOSE_SERVICE}' for exclusive workspace access..."
   docker compose stop "${COMPOSE_SERVICE}" >/dev/null 2>&1 || true
 
-  local headless_cmd='set -euo pipefail; Xvfb :99 -screen 0 1920x1080x24 >/tmp/xvfb.log 2>&1 & xv=$!; export DISPLAY=:99; while IFS= read -r p; do [ -z "$p" ] && continue; echo "IMPORT:$p"; code=0; timeout 40 /opt/eclipse/eclipse -nosplash -application org.eclipse.cdt.managedbuilder.core.headlessbuild -data /workspace -import "$p" || code=$?; if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then echo "FAILED:$p:$code"; kill $xv || true; wait $xv 2>/dev/null || true; exit "$code"; fi; done < /workspace/.eclipse-import-paths.txt; kill $xv || true; wait $xv 2>/dev/null || true'
+  local headless_cmd='set -euo pipefail
+xv=""
+cleanup() {
+  if [ -n "${xv:-}" ] && kill -0 "$xv" >/dev/null 2>&1; then
+    kill "$xv" >/dev/null 2>&1 || true
+    wait "$xv" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+Xvfb :99 -screen 0 1920x1080x24 >/tmp/xvfb.log 2>&1 &
+xv=$!
+export DISPLAY=:99
+while IFS= read -r p; do
+  [ -z "$p" ] && continue
+  echo "IMPORT:$p"
+  code=0
+  timeout 40 /opt/eclipse/eclipse -nosplash -application org.eclipse.cdt.managedbuilder.core.headlessbuild -data /workspace -import "$p" || code=$?
+  if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
+    echo "FAILED:$p:$code"
+    exit "$code"
+  fi
+done < /workspace/.eclipse-import-paths.txt'
 
   echo "Running headless Eclipse import in one Docker run..."
   docker compose run --rm --no-deps --entrypoint /bin/bash -e USE_HOST_X11=0 "${COMPOSE_SERVICE}" -lc "${headless_cmd}"
+
+  local expected_names
+  local workspace_names
+  local missing_names
+  expected_names="$(sed '/^$/d' "${imported_file}" | sort -u)"
+  workspace_names="$(collect_workspace_project_names)"
+  missing_names="$(missing_workspace_projects "${expected_names}" "${workspace_names}")"
+
+  if [[ -n "${missing_names}" ]]; then
+    echo "Detected missing Eclipse workspace projects after bulk import:"
+    while IFS= read -r missing_name; do
+      [[ -z "${missing_name}" ]] && continue
+      printf '  %s\n' "${missing_name}"
+    done <<< "${missing_names}"
+
+    while IFS= read -r missing_name; do
+      [[ -z "${missing_name}" ]] && continue
+
+      local missing_path=""
+      for project_dir in "${host_project_dirs[@]}"; do
+        if [[ "$(project_name_from_path "${project_dir}")" == "${missing_name}" ]]; then
+          missing_path="${project_dir}"
+          break
+        fi
+      done
+
+      if [[ -z "${missing_path}" ]]; then
+        echo "WARN: Could not resolve project path for missing workspace project '${missing_name}'."
+        continue
+      fi
+
+      local rel_missing="${missing_path#${host_real}/}"
+      local single_import_cmd='set -euo pipefail
+xv=""
+cleanup() {
+  if [ -n "${xv:-}" ] && kill -0 "$xv" >/dev/null 2>&1; then
+    kill "$xv" >/dev/null 2>&1 || true
+    wait "$xv" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+Xvfb :99 -screen 0 1920x1080x24 >/tmp/xvfb.log 2>&1 &
+xv=$!
+export DISPLAY=:99
+timeout 60 /opt/eclipse/eclipse -nosplash -application org.eclipse.cdt.managedbuilder.core.headlessbuild -data /workspace -import "/repos/'"${rel_missing}"'"'
+
+      echo "Retrying missing project import: ${missing_name}"
+      docker compose run --rm --no-deps --entrypoint /bin/bash -e USE_HOST_X11=0 "${COMPOSE_SERVICE}" -lc "${single_import_cmd}"
+    done <<< "${missing_names}"
+
+    workspace_names="$(collect_workspace_project_names)"
+    missing_names="$(missing_workspace_projects "${expected_names}" "${workspace_names}")"
+    if [[ -n "${missing_names}" ]]; then
+      echo "ERROR: Eclipse workspace import still incomplete after retries:" >&2
+      while IFS= read -r missing_name; do
+        [[ -z "${missing_name}" ]] && continue
+        printf '  %s\n' "${missing_name}" >&2
+      done <<< "${missing_names}"
+      return 1
+    fi
+  fi
+
+  echo "Verified Eclipse workspace import completeness (${import_count} projects)."
 
   echo "Starting compose service '${COMPOSE_SERVICE}'..."
   REPOS_DIR="${REPOS_DIR}" WORKSPACE_DIR="${WORKSPACE_DIR}" docker compose up -d "${COMPOSE_SERVICE}"
