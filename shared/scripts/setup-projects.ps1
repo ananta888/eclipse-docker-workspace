@@ -18,6 +18,9 @@ param(
     [switch]$GenerateEclipseProjects,
     [switch]$ImportIntoEclipse,
     [string]$WorkspacePath,
+    [ValidateSet('disabled', 'marker', 'auto')]
+    [string]$FolderProjectMode = 'marker',
+    [string]$FolderProjectMarker = '.eclipse-project-dir',
     [switch]$DisableSaros,
     [switch]$EnableSaros
 )
@@ -129,6 +132,7 @@ function Invoke-GradleEclipse {
         if ($LASTEXITCODE -ne 0) {
             throw "gradlew.bat eclipse failed in $workingDir"
         }
+        Ensure-GenericProjectFiles -RepoPath $RepoPath
         return
     }
 
@@ -144,10 +148,129 @@ function Invoke-GradleEclipse {
         if ($LASTEXITCODE -ne 0) {
             throw "gradlew eclipse failed in $workingDir"
         }
+        Ensure-GenericProjectFiles -RepoPath $RepoPath
         return
     }
 
     Write-Warning "No Gradle wrapper found in $RepoPath. Skipping Eclipse metadata generation."
+    Ensure-GenericProjectFiles -RepoPath $RepoPath
+}
+
+function New-BuildshipProjectFile {
+    param(
+        [string]$ProjectDir,
+        [string]$ProjectName,
+        [string]$Comment
+    )
+
+    $projectFile = Join-Path $ProjectDir ".project"
+    if (Test-Path $projectFile) {
+        return
+    }
+
+    @"
+<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
+	<name>$ProjectName</name>
+	<comment>$Comment</comment>
+	<projects/>
+	<natures>
+		<nature>org.eclipse.buildship.core.gradleprojectnature</nature>
+		<nature>net.sf.eclipsecs.core.CheckstyleNature</nature>
+	</natures>
+	<buildSpec>
+		<buildCommand>
+			<name>org.eclipse.buildship.core.gradleprojectbuilder</name>
+			<arguments/>
+		</buildCommand>
+		<buildCommand>
+			<name>net.sf.eclipsecs.core.CheckstyleBuilder</name>
+			<arguments/>
+		</buildCommand>
+	</buildSpec>
+	<linkedResources/>
+	<filteredResources/>
+</projectDescription>
+"@ | Set-Content -Path $projectFile -Encoding UTF8
+
+    Write-Host "Created fallback .project for $ProjectName`: $projectFile"
+}
+
+function New-BasicProjectFile {
+    param(
+        [string]$ProjectDir,
+        [string]$ProjectName,
+        [string]$Comment
+    )
+
+    $projectFile = Join-Path $ProjectDir ".project"
+    @"
+<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
+	<name>$ProjectName</name>
+	<comment>$Comment</comment>
+	<projects/>
+	<buildSpec/>
+	<natures/>
+	<linkedResources/>
+	<filteredResources/>
+</projectDescription>
+"@ | Set-Content -Path $projectFile -Encoding UTF8
+}
+
+function Test-DirectoryContainsFiles {
+    param([string]$ProjectDir)
+
+    return [bool](Get-ChildItem -Path $ProjectDir -File -Recurse -Depth 1 -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -ne '.project' -and
+        $_.FullName -notmatch '[\\/]\.git[\\/]' -and
+        $_.FullName -notmatch '[\\/]\.gradle[\\/]'
+    } | Select-Object -First 1)
+}
+
+function Test-DirectoryIsOptedInProject {
+    param([string]$ProjectDir)
+
+    switch ($FolderProjectMode) {
+        'disabled' { return $false }
+        'marker' { return (Test-Path (Join-Path $ProjectDir $FolderProjectMarker)) }
+        'auto' { return (Test-DirectoryContainsFiles -ProjectDir $ProjectDir) }
+        default { throw "Unsupported folder project mode: $FolderProjectMode" }
+    }
+}
+
+function Ensure-GenericProjectFiles {
+    param([string]$RepoPath)
+
+    $settingsFiles = Get-ChildItem -Path $RepoPath -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -in @('settings.gradle', 'settings.gradle.kts') }
+
+    foreach ($settingsFile in $settingsFiles) {
+        $projectDir = $settingsFile.Directory.FullName
+        $projectFile = Join-Path $projectDir ".project"
+        if (-not (Test-Path $projectFile)) {
+            New-BuildshipProjectFile -ProjectDir $projectDir -ProjectName $settingsFile.Directory.Name -Comment "Gradle root project"
+        }
+    }
+
+    $hasProjectFiles = [bool](Get-ChildItem -Path $RepoPath -Recurse -File -Filter ".project" -ErrorAction SilentlyContinue | Select-Object -First 1)
+    if ($hasProjectFiles) {
+        return
+    }
+
+    $topLevelDirs = Get-ChildItem -Path $RepoPath -Directory -ErrorAction SilentlyContinue |
+        Where-Object { -not $_.Name.StartsWith('.') }
+
+    foreach ($projectDir in $topLevelDirs) {
+        $projectFile = Join-Path $projectDir.FullName ".project"
+        if (Test-Path $projectFile) {
+            continue
+        }
+        if (Test-DirectoryIsOptedInProject -ProjectDir $projectDir.FullName) {
+            New-BasicProjectFile -ProjectDir $projectDir.FullName -ProjectName $projectDir.Name -Comment "Imported folder project"
+            Write-Host "Created folder .project for $($projectDir.Name): $projectFile"
+        }
+    }
 }
 
 function Import-ProjectsIntoEclipse {
