@@ -385,6 +385,127 @@ function Get-EclipseProjectLocationUri {
     return "URI//file:/$($fullPath -replace '\\', '/')"
 }
 
+function Get-FileUri {
+    param([string]$Path)
+
+    return ([System.Uri]([System.IO.Path]::GetFullPath($Path))).AbsoluteUri
+}
+
+function Get-XsdCatalogEntries {
+    param([string]$ReposPath)
+
+    if (-not (Test-Path $ReposPath)) {
+        return @()
+    }
+
+    $entries = New-Object System.Collections.Generic.List[object]
+    $seenNamespaces = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $xsdFiles = Get-ChildItem -Path $ReposPath -Recurse -File -Filter '*.xsd' -ErrorAction SilentlyContinue
+
+    foreach ($xsdFile in $xsdFiles) {
+        try {
+            [xml]$xsdXml = Get-Content -Path $xsdFile.FullName
+        }
+        catch {
+            continue
+        }
+
+        $schemaNode = $xsdXml.DocumentElement
+        if ($null -eq $schemaNode) {
+            continue
+        }
+
+        $targetNamespace = $schemaNode.GetAttribute('targetNamespace')
+        if ([string]::IsNullOrWhiteSpace($targetNamespace)) {
+            continue
+        }
+
+        if (-not $seenNamespaces.Add($targetNamespace)) {
+            continue
+        }
+
+        $entries.Add([pscustomobject]@{
+            Namespace = $targetNamespace
+            SchemaPath = $xsdFile.FullName
+            SchemaUri = Get-FileUri -Path $xsdFile.FullName
+        }) | Out-Null
+    }
+
+    return @($entries | Sort-Object Namespace)
+}
+
+function Ensure-XmlCatalogEntries {
+    param(
+        [string]$WorkspacePath,
+        [string]$ReposPath
+    )
+
+    $catalogEntries = Get-XsdCatalogEntries -ReposPath $ReposPath
+    if (-not $catalogEntries -or $catalogEntries.Count -eq 0) {
+        Write-Warning "No XSD targetNamespace entries found under $ReposPath. Skipping XML catalog update."
+        return
+    }
+
+    $catalogDir = Join-Path $WorkspacePath '.metadata\.plugins\org.eclipse.wst.xml.core'
+    New-Item -ItemType Directory -Force -Path $catalogDir | Out-Null
+    $userCatalogPath = Join-Path $catalogDir 'user_catalog.xml'
+
+    if (Test-Path $userCatalogPath) {
+        [xml]$catalogXml = Get-Content -Path $userCatalogPath
+    }
+    else {
+        $catalogXml = New-Object System.Xml.XmlDocument
+        $declaration = $catalogXml.CreateXmlDeclaration('1.0', 'UTF-8', $null)
+        $catalogXml.AppendChild($declaration) | Out-Null
+        $catalogElement = $catalogXml.CreateElement('catalog', 'urn:oasis:names:tc:entity:xmlns:xml:catalog')
+        $catalogXml.AppendChild($catalogElement) | Out-Null
+    }
+
+    $catalogRoot = $catalogXml.DocumentElement
+    if ($null -eq $catalogRoot -or $catalogRoot.LocalName -ne 'catalog') {
+        throw "Unexpected XML catalog format: $userCatalogPath"
+    }
+
+    $namespaceUri = $catalogRoot.NamespaceURI
+    if ([string]::IsNullOrWhiteSpace($namespaceUri)) {
+        $namespaceUri = 'urn:oasis:names:tc:entity:xmlns:xml:catalog'
+    }
+
+    $existingGeneratedNodes = @($catalogRoot.ChildNodes | Where-Object {
+        $_.NodeType -eq [System.Xml.XmlNodeType]::Element -and
+        $_.Attributes['id'] -and
+        $_.Attributes['id'].Value.StartsWith('geograt-auto:')
+    })
+    foreach ($node in $existingGeneratedNodes) {
+        $catalogRoot.RemoveChild($node) | Out-Null
+    }
+
+    foreach ($entry in $catalogEntries) {
+        $uriNode = $catalogXml.CreateElement('uri', $namespaceUri)
+        $safeId = ($entry.Namespace -replace '[^A-Za-z0-9._-]', '_')
+        $uriNode.SetAttribute('id', "geograt-auto:$safeId")
+        $uriNode.SetAttribute('name', $entry.Namespace)
+        $uriNode.SetAttribute('uri', $entry.SchemaUri)
+        $catalogRoot.AppendChild($uriNode) | Out-Null
+    }
+
+    $settings = New-Object System.Xml.XmlWriterSettings
+    $settings.Encoding = New-Object System.Text.UTF8Encoding($false)
+    $settings.Indent = $true
+    $settings.NewLineChars = "`r`n"
+    $settings.NewLineHandling = [System.Xml.NewLineHandling]::Replace
+
+    $writer = [System.Xml.XmlWriter]::Create($userCatalogPath, $settings)
+    try {
+        $catalogXml.Save($writer)
+    }
+    finally {
+        $writer.Dispose()
+    }
+
+    Write-Host "XML catalog updated: $userCatalogPath ($($catalogEntries.Count) namespace entries)"
+}
+
 function Register-ProjectInWorkspaceMetadata {
     param(
         [string]$WorkspacePath,
@@ -610,4 +731,5 @@ if ($ImportIntoEclipse) {
     }
     New-Item -ItemType Directory -Force -Path $workspace | Out-Null
     Import-ProjectsIntoEclipse -RepoRootPath $root -WorkspacePath $workspace
+    Ensure-XmlCatalogEntries -WorkspacePath $workspace -ReposPath (Join-Path $root 'portable\repos')
 }
