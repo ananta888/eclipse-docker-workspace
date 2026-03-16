@@ -167,19 +167,50 @@ $eclipseExe = Join-Path $eclipseHome 'eclipse.exe'
 $extractedDir = Join-Path $portableRoot 'eclipse'
 $extractedExe = Join-Path $extractedDir 'eclipse.exe'
 $hasExistingInstall = Test-Path $eclipseExe
+$recoveryDir = "${eclipseHome}.bak-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+
+function Move-InvalidInstallAside {
+    param(
+        [string]$SourceDir,
+        [string]$BackupDir
+    )
+
+    if (-not (Test-Path $SourceDir)) {
+        return
+    }
+
+    Write-Warning "Existing Eclipse target is incomplete. Moving it aside: $SourceDir -> $BackupDir"
+    Move-Item -Force -Path $SourceDir -Destination $BackupDir
+}
+
+if ($hasExistingInstall) {
+    Write-Host "Existing Eclipse installation found ($eclipseExe). Skipping download/extract."
+}
+elseif (Test-Path $extractedExe) {
+    Write-Host "Found already extracted Eclipse directory ($extractedDir). Finalizing installation without download."
+    if (Test-Path $eclipseHome) {
+        Move-InvalidInstallAside -SourceDir $eclipseHome -BackupDir $recoveryDir
+    }
+    Move-Item -Force -Path $extractedDir -Destination $eclipseHome
+    $hasExistingInstall = Test-Path $eclipseExe
+}
 
 if (-not $hasExistingInstall) {
     if (-not (Test-Path $cachedZip)) {
         Invoke-WebRequest -Uri $downloadUrl -OutFile $cachedZip
     }
 
+    if (Test-Path $eclipseHome) {
+        Move-InvalidInstallAside -SourceDir $eclipseHome -BackupDir $recoveryDir
+    }
+
+    if (Test-Path $extractedDir) {
+        Remove-Item -Recurse -Force $extractedDir
+    }
+
     Expand-Archive -Path $cachedZip -DestinationPath $portableRoot -Force
     if (-not (Test-Path $extractedExe)) {
         throw "Expected extracted executable not found: $extractedExe"
-    }
-
-    if (Test-Path $eclipseHome) {
-        throw "Target directory already exists without valid eclipse.exe: $eclipseHome"
     }
 
     Move-Item -Force -Path $extractedDir -Destination $eclipseHome
