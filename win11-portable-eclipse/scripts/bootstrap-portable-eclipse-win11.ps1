@@ -2,6 +2,8 @@
 param(
     [string]$EclipseVersion = '2025-12',
     [string]$EclipseBuild = 'R',
+    [ValidateSet('java', 'jee')]
+    [string]$EclipsePackage = 'jee',
     [string]$RepoRoot,
     [switch]$SkipPluginInstall,
     [switch]$ImportPreferences
@@ -96,6 +98,46 @@ function Test-FeatureIUInstalled {
 function Test-IsSarosIU {
     param([string]$IU)
     return $IU -eq 'saros.feature.feature.group'
+}
+
+function Get-EppPackageInfo {
+    param([string]$PackageFlavor)
+
+    switch ($PackageFlavor) {
+        'java' {
+            return @{
+                ArchivePrefix = 'eclipse-java'
+                ProfileId = 'epp.package.java'
+                BundlePrefix = 'org.eclipse.epp.package.java_'
+                DisplayName = 'Eclipse IDE for Java Developers'
+            }
+        }
+        'jee' {
+            return @{
+                ArchivePrefix = 'eclipse-jee'
+                ProfileId = 'epp.package.jee'
+                BundlePrefix = 'org.eclipse.epp.package.jee_'
+                DisplayName = 'Eclipse IDE for Enterprise Java and Web Developers'
+            }
+        }
+        default {
+            throw "Unsupported Eclipse package flavor: $PackageFlavor"
+        }
+    }
+}
+
+function Test-EclipsePackageInstalled {
+    param(
+        [string]$EclipseHome,
+        [string]$BundlePrefix
+    )
+
+    $pluginsDir = Join-Path $EclipseHome 'plugins'
+    if (-not (Test-Path $pluginsDir)) {
+        return $false
+    }
+
+    return [bool](Get-ChildItem -Path $pluginsDir -Filter "$BundlePrefix*" -ErrorAction SilentlyContinue)
 }
 
 function Ensure-EclipseIniVmArgs {
@@ -193,7 +235,8 @@ $pluginsFile = Join-Path $packageRoot 'config\p2\plugins.txt'
 $launchSrcDir = Join-Path $packageRoot 'config\launch'
 $launchDstDir = Join-Path $workspaceDir '.launches'
 $workbenchPluginDir = Join-Path $workspaceDir '.metadata\.plugins\org.eclipse.ui.workbench'
-$p2Profile = 'epp.package.java'
+$packageInfo = Get-EppPackageInfo -PackageFlavor $EclipsePackage
+$p2Profile = $packageInfo.ProfileId
 $requiredSarosVmOpens = @(
     '--add-opens=java.base/java.util=ALL-UNNAMED',
     '--add-opens=java.base/java.lang=ALL-UNNAMED',
@@ -202,7 +245,7 @@ $requiredSarosVmOpens = @(
     '--add-opens=java.desktop/java.awt.font=ALL-UNNAMED'
 )
 
-$package = "eclipse-java-$EclipseVersion-$EclipseBuild-win32-x86_64.zip"
+$package = "$($packageInfo.ArchivePrefix)-$EclipseVersion-$EclipseBuild-win32-x86_64.zip"
 $downloadUrl = "https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/$EclipseVersion/$EclipseBuild/$package&r=1"
 $cacheDir = Join-Path $portableRoot 'cache'
 $cachedZip = Join-Path $cacheDir $package
@@ -230,7 +273,14 @@ function Move-InvalidInstallAside {
 }
 
 if ($hasExistingInstall) {
-    Write-Host "Existing Eclipse installation found ($eclipseExe). Skipping download/extract."
+    if (Test-EclipsePackageInstalled -EclipseHome $eclipseHome -BundlePrefix $packageInfo.BundlePrefix) {
+        Write-Host "Existing Eclipse installation found ($eclipseExe). Skipping download/extract."
+    }
+    else {
+        Write-Host "Existing Eclipse installation does not match requested package '$($packageInfo.DisplayName)'. Reinstalling package."
+        Move-InvalidInstallAside -SourceDir $eclipseHome -BackupDir $recoveryDir
+        $hasExistingInstall = $false
+    }
 }
 elseif (Test-Path $extractedExe) {
     Write-Host "Found already extracted Eclipse directory ($extractedDir). Finalizing installation without download."

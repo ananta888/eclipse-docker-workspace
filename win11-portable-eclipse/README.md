@@ -4,7 +4,7 @@ Dieser Ordner ist als eigenstaendiges Windows-11-Setup-Paket aufgebaut und entha
 
 - WSL2 pruefen und bei Bedarf installieren
 - Ubuntu unter WSL pruefen und bei Bedarf installieren
-- portable Eclipse fuer Windows herunterladen
+- portable Eclipse fuer Windows herunterladen (`Eclipse IDE for Enterprise Java and Web Developers`)
 - Team-Plugins installieren
 - Eclipse-Preferences importieren
 - Repositories unter `portable\repos` klonen/aktualisieren
@@ -36,6 +36,7 @@ win11-portable-eclipse\install-win11-portable-eclipse.bat ^
 - Die Setup-Logik liegt lokal unter `win11-portable-eclipse\scripts`.
 - Die Konfiguration liegt lokal unter `win11-portable-eclipse\config`.
 - Eclipse wird unter `portable\eclipse-win` installiert.
+- Verwendet wird das EE/Web-Paket, damit die klassischen Web-/XML-Funktionen verfuegbar sind.
 - Der Windows-Workspace liegt unter `portable\workspace-win`.
 - Geklonte Repositories liegen unter `portable\repos`.
 
