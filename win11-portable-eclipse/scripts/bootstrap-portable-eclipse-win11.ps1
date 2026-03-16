@@ -135,6 +135,51 @@ function Ensure-EclipseIniVmArgs {
     Set-Content -Path $EclipseIniPath -Value $updated -Encoding UTF8
 }
 
+function Invoke-EclipseWorkbenchImport {
+    param(
+        [string]$EclipseExe,
+        [string[]]$Arguments,
+        [int]$TimeoutSeconds = 45
+    )
+
+    $stdoutPath = Join-Path $env:TEMP "eclipse-import-$PID-out.log"
+    $stderrPath = Join-Path $env:TEMP "eclipse-import-$PID-err.log"
+
+    if (Test-Path $stdoutPath) {
+        Remove-Item -Force $stdoutPath
+    }
+    if (Test-Path $stderrPath) {
+        Remove-Item -Force $stderrPath
+    }
+
+    $proc = Start-Process -FilePath $EclipseExe -ArgumentList $Arguments -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+    $timedOut = $false
+
+    try {
+        Wait-Process -Id $proc.Id -Timeout $TimeoutSeconds -ErrorAction Stop
+    }
+    catch {
+        $timedOut = $true
+    }
+    finally {
+        if (-not $proc.HasExited) {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            Wait-Process -Id $proc.Id -Timeout 5 -ErrorAction SilentlyContinue
+        }
+    }
+
+    $stdout = if (Test-Path $stdoutPath) { Get-Content -Path $stdoutPath -ErrorAction SilentlyContinue } else { @() }
+    $stderr = if (Test-Path $stderrPath) { Get-Content -Path $stderrPath -ErrorAction SilentlyContinue } else { @() }
+
+    return @{
+        TimedOut = $timedOut
+        ExitCode = if ($proc.HasExited) { $proc.ExitCode } else { -1 }
+        StdOut = @($stdout)
+        StdErr = @($stderr)
+        OutputText = ((@($stdout) + @($stderr)) | Out-String).Trim()
+    }
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $resolvedRepoRoot = Get-RepoRoot -ScriptPath $scriptDir
 $packageRoot = Join-Path $resolvedRepoRoot 'win11-portable-eclipse'
@@ -147,6 +192,7 @@ $prefsFile = Join-Path $packageRoot 'config\prefs\eclipse.epf'
 $pluginsFile = Join-Path $packageRoot 'config\p2\plugins.txt'
 $launchSrcDir = Join-Path $packageRoot 'config\launch'
 $launchDstDir = Join-Path $workspaceDir '.launches'
+$workbenchPluginDir = Join-Path $workspaceDir '.metadata\.plugins\org.eclipse.ui.workbench'
 $p2Profile = 'epp.package.java'
 $requiredSarosVmOpens = @(
     '--add-opens=java.base/java.util=ALL-UNNAMED',
@@ -234,6 +280,13 @@ if (Test-Path $launchSrcDir) {
     Copy-Item -Recurse -Force (Join-Path $launchSrcDir '*') $launchDstDir
 }
 
+if (Test-Path $workbenchPluginDir) {
+    $workingsetsFile = Join-Path $workbenchPluginDir 'workingsets.xml'
+    if (Test-Path $workingsetsFile) {
+        Remove-Item -Force $workingsetsFile
+    }
+}
+
 if (-not $SkipPluginInstall) {
     $pluginReposByIU = @{}
     $pluginOrder = New-Object System.Collections.Generic.List[string]
@@ -316,11 +369,14 @@ if ($ImportPreferences -and (Test-Path $prefsFile)) {
         '-data', $workspaceDir,
         '-import', $prefsFile
     )
-    $importOutput = & $eclipseExe @importArgs 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        $details = ($importOutput | Out-String).Trim()
+    $importResult = Invoke-EclipseWorkbenchImport -EclipseExe $eclipseExe -Arguments $importArgs
+    if ($importResult.TimedOut -or $importResult.ExitCode -ne 0) {
+        $details = $importResult.OutputText
         $workspaceLogSnippet = Get-LatestWorkspaceLogSnippet -WorkspaceDir $workspaceDir
         $failureMessage = 'Preference import failed (continuing bootstrap).'
+        if ($importResult.TimedOut) {
+            $failureMessage += ' Eclipse was force-closed after the import timeout.'
+        }
         if ($details) {
             $failureMessage += "`n$details"
         }

@@ -290,6 +290,149 @@ function Invoke-GradleEclipse {
     Ensure-GenericProjectFiles -RepoPath $RepoPath
 }
 
+function Test-WorkspaceInUse {
+    param([string]$WorkspacePath)
+
+    $workspaceLock = Join-Path $WorkspacePath '.metadata\.lock'
+    if (-not (Test-Path $workspaceLock)) {
+        return $false
+    }
+
+    try {
+        $lockStream = [System.IO.File]::Open($workspaceLock, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+        $lockStream.Close()
+        return $false
+    }
+    catch {
+        $lockInfoPath = Join-Path $WorkspacePath '.metadata\.lock_info'
+        if (-not (Test-Path $lockInfoPath)) {
+            return $true
+        }
+
+        $lockInfo = @{}
+        foreach ($line in Get-Content -Path $lockInfoPath -ErrorAction SilentlyContinue) {
+            if ($line.StartsWith('#')) {
+                continue
+            }
+
+            $parts = $line.Split('=', 2)
+            if ($parts.Count -eq 2) {
+                $lockInfo[$parts[0].Trim()] = $parts[1].Trim()
+            }
+        }
+
+        $lockHost = $lockInfo['host']
+        if (-not [string]::IsNullOrWhiteSpace($lockHost) -and $lockHost -ne $env:COMPUTERNAME) {
+            return $true
+        }
+
+        $processId = 0
+        if ([int]::TryParse($lockInfo['process-id'], [ref]$processId) -and $processId -gt 0) {
+            return [bool](Get-Process -Id $processId -ErrorAction SilentlyContinue)
+        }
+
+        return $false
+    }
+}
+
+function Get-WorkspaceProjectNames {
+    param([string]$WorkspacePath)
+
+    $projectsRoot = Join-Path $WorkspacePath '.metadata\.plugins\org.eclipse.core.resources\.projects'
+    if (-not (Test-Path $projectsRoot)) {
+        return @()
+    }
+
+    return @(Get-ChildItem -Path $projectsRoot -Directory -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty Name)
+}
+
+function Get-EclipseProjectName {
+    param([string]$ProjectDir)
+
+    $projectFile = Join-Path $ProjectDir '.project'
+    if (-not (Test-Path $projectFile)) {
+        throw "Missing .project file in $ProjectDir"
+    }
+
+    [xml]$projectXml = Get-Content -Path $projectFile
+    $projectName = $projectXml.projectDescription.name
+    if ([string]::IsNullOrWhiteSpace($projectName)) {
+        throw "Could not resolve project name from $projectFile"
+    }
+
+    return $projectName.Trim()
+}
+
+function Get-EclipseProjectLocationUri {
+    param([string]$ProjectDir)
+
+    $fullPath = [System.IO.Path]::GetFullPath($ProjectDir)
+    return "URI//file:/$($fullPath -replace '\\', '/')"
+}
+
+function Register-ProjectInWorkspaceMetadata {
+    param(
+        [string]$WorkspacePath,
+        [string]$ProjectName,
+        [string]$ProjectDir
+    )
+
+    $projectsRoot = Join-Path $WorkspacePath '.metadata\.plugins\org.eclipse.core.resources\.projects'
+    $projectMetadataDir = Join-Path $projectsRoot $ProjectName
+    New-Item -ItemType Directory -Force -Path $projectMetadataDir | Out-Null
+
+    $locationFile = Join-Path $projectMetadataDir '.location'
+    $locationUri = Get-EclipseProjectLocationUri -ProjectDir $ProjectDir
+    $uriBytes = [System.Text.Encoding]::ASCII.GetBytes($locationUri)
+
+    $header = [byte[]](0x40, 0xB1, 0x8B, 0x81, 0x23, 0xBC, 0x00, 0x14, 0x1A, 0x25, 0x96, 0xE7, 0xA3, 0x93, 0xBE, 0x1E)
+    $footer = [byte[]](0xC0, 0x58, 0xFB, 0xF3, 0x23, 0xBC, 0x00, 0x14, 0x1A, 0x51, 0xF3, 0x8C, 0x7B, 0xBB, 0x77, 0xC6)
+    $payloadLength = $header.Length + 2 + $uriBytes.Length + $footer.Length
+    $fileLength = [Math]::Max(208, $payloadLength)
+    $paddingLength = $fileLength - $payloadLength
+
+    $lengthValue = [System.Net.IPAddress]::HostToNetworkOrder([int16]$uriBytes.Length)
+    $lengthBytes = [System.BitConverter]::GetBytes($lengthValue)
+    $padding = New-Object byte[] $paddingLength
+
+    [System.IO.File]::WriteAllBytes($locationFile, $header + $lengthBytes + $uriBytes + $padding + $footer)
+}
+
+function Register-ProjectsInWorkspaceMetadata {
+    param(
+        [string]$WorkspacePath,
+        [hashtable]$ProjectNamesByDir,
+        [string[]]$ProjectDirs
+    )
+
+    foreach ($projectDir in $ProjectDirs) {
+        Register-ProjectInWorkspaceMetadata -WorkspacePath $WorkspacePath -ProjectName $ProjectNamesByDir[$projectDir] -ProjectDir $projectDir
+    }
+}
+
+function Wait-ForImportedProjects {
+    param(
+        [string]$WorkspacePath,
+        [string[]]$ProjectNames,
+        [int]$TimeoutSeconds = 120,
+        [int]$PollIntervalSeconds = 2
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        $importedProjects = Get-WorkspaceProjectNames -WorkspacePath $WorkspacePath
+        $missingProjects = @($ProjectNames | Where-Object { $importedProjects -notcontains $_ })
+        if ($missingProjects.Count -eq 0) {
+            return $true
+        }
+
+        Start-Sleep -Seconds $PollIntervalSeconds
+    } while ((Get-Date) -lt $deadline)
+
+    return $false
+}
+
 function Import-ProjectsIntoEclipse {
     param(
         [string]$RepoRootPath,
@@ -306,8 +449,7 @@ function Import-ProjectsIntoEclipse {
         throw "Repos path not found: $reposPath"
     }
 
-    $workspaceLock = Join-Path $WorkspacePath '.metadata\.lock'
-    if (Test-Path $workspaceLock) {
+    if (Test-WorkspaceInUse -WorkspacePath $WorkspacePath) {
         throw "Workspace appears to be in use: $WorkspacePath. Please close Eclipse and retry."
     }
 
@@ -318,6 +460,11 @@ function Import-ProjectsIntoEclipse {
     if (-not $projectDirs -or $projectDirs.Count -eq 0) {
         Write-Warning "No .project files found under $reposPath. Nothing to import."
         return
+    }
+
+    $projectNamesByDir = @{}
+    foreach ($projectDir in $projectDirs) {
+        $projectNamesByDir[$projectDir] = Get-EclipseProjectName -ProjectDir $projectDir
     }
 
     $featuresDir = Join-Path $RepoRootPath 'portable\eclipse-win\features'
@@ -334,7 +481,7 @@ function Import-ProjectsIntoEclipse {
 
     $useHeadlessImport = ($hasCdtFeature -or $hasCdtHeadlessPlugin)
     $eclipsecExe = Join-Path $RepoRootPath 'portable\eclipse-win\eclipsec.exe'
-    $launcherExe = if (Test-Path $eclipsecExe) { $eclipsecExe } else { $eclipseExe }
+    $headlessLauncherExe = if (Test-Path $eclipsecExe) { $eclipsecExe } else { $eclipseExe }
 
     if ($useHeadlessImport) {
         $timeoutSeconds = 40
@@ -354,7 +501,7 @@ function Import-ProjectsIntoEclipse {
                 '--add-opens=java.desktop/java.awt.font=ALL-UNNAMED'
             )
 
-            $proc = Start-Process -FilePath $launcherExe -ArgumentList $importArgs -NoNewWindow -PassThru
+            $proc = Start-Process -FilePath $headlessLauncherExe -ArgumentList $importArgs -NoNewWindow -PassThru
             try {
                 Wait-Process -Id $proc.Id -Timeout $timeoutSeconds -ErrorAction Stop
             }
@@ -363,16 +510,27 @@ function Import-ProjectsIntoEclipse {
                     Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
                 }
             }
+
+            if (-not (Wait-ForImportedProjects -WorkspacePath $WorkspacePath -ProjectNames @($projectNamesByDir[$projectDir]) -TimeoutSeconds 10 -PollIntervalSeconds 1)) {
+                throw "Headless Eclipse import did not register project '$($projectNamesByDir[$projectDir])' from $projectDir"
+            }
         }
         return
     }
 
     $batchSize = 20
+    $timeoutSeconds = 120
     for ($i = 0; $i -lt $projectDirs.Count; $i += $batchSize) {
         $upper = [Math]::Min($i + $batchSize - 1, $projectDirs.Count - 1)
         $batch = @($projectDirs[$i..$upper])
+        $expectedProjectNames = @($batch | ForEach-Object { $projectNamesByDir[$_] })
 
-        $importArgs = @('-nosplash', '-consoleLog', '-data', $WorkspacePath)
+        $importArgs = @(
+            '-nosplash',
+            '-consoleLog',
+            '-application', 'org.eclipse.ui.ide.workbench',
+            '-data', $WorkspacePath
+        )
         foreach ($projectDir in $batch) {
             $importArgs += @('-import', $projectDir)
         }
@@ -385,9 +543,27 @@ function Import-ProjectsIntoEclipse {
             '--add-opens=java.desktop/java.awt.font=ALL-UNNAMED'
         )
 
-        $proc = Start-Process -FilePath $launcherExe -ArgumentList $importArgs -NoNewWindow -Wait -PassThru
-        if ($proc.ExitCode -ne 0) {
-            throw "Eclipse project import failed in batch starting at index $i with exit code $($proc.ExitCode)"
+        $proc = Start-Process -FilePath $eclipseExe -ArgumentList $importArgs -PassThru
+        $importCompleted = $false
+
+        try {
+            $importCompleted = Wait-ForImportedProjects -WorkspacePath $WorkspacePath -ProjectNames $expectedProjectNames -TimeoutSeconds $timeoutSeconds
+        }
+        finally {
+            if (-not $proc.HasExited) {
+                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        if (-not $importCompleted) {
+            Register-ProjectsInWorkspaceMetadata -WorkspacePath $WorkspacePath -ProjectNamesByDir $projectNamesByDir -ProjectDirs $batch
+            $importCompleted = Wait-ForImportedProjects -WorkspacePath $WorkspacePath -ProjectNames $expectedProjectNames -TimeoutSeconds 5 -PollIntervalSeconds 1
+        }
+
+        if (-not $importCompleted) {
+            $importedProjects = Get-WorkspaceProjectNames -WorkspacePath $WorkspacePath
+            $missingProjects = @($expectedProjectNames | Where-Object { $importedProjects -notcontains $_ })
+            throw "Eclipse project import failed in batch starting at index $i. Missing projects after metadata fallback: $($missingProjects -join ', ')"
         }
     }
 }
