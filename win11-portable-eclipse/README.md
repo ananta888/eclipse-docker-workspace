@@ -1,6 +1,6 @@
 # Windows 11 Portable Eclipse Setup
 
-Dieser Ordner enthaelt nur den relevanten Windows-11-Setup fuer:
+Dieser Ordner ist als eigenstaendiges Windows-11-Setup-Paket aufgebaut und enthaelt alles Relevante lokal in diesem Verzeichnis:
 
 - WSL2 pruefen und bei Bedarf installieren
 - Ubuntu unter WSL pruefen und bei Bedarf installieren
@@ -10,6 +10,7 @@ Dieser Ordner enthaelt nur den relevanten Windows-11-Setup fuer:
 - Repositories unter `portable\repos` klonen/aktualisieren
 - Gradle-Eclipse-Metadaten erzeugen
 - Projekte automatisch in den Eclipse-Workspace importieren
+- lokale Konfiguration fuer Plugins, Preferences und Launches
 
 ## Start
 
@@ -32,6 +33,8 @@ win11-portable-eclipse\install-win11-portable-eclipse.bat ^
 
 - Fuer die Installation von WSL/Ubuntu sind Administratorrechte noetig.
 - Falls Windows einen Neustart verlangt, beendet sich das Skript mit Hinweis.
+- Die Setup-Logik liegt lokal unter `win11-portable-eclipse\scripts`.
+- Die Konfiguration liegt lokal unter `win11-portable-eclipse\config`.
 - Eclipse wird unter `portable\eclipse-win` installiert.
 - Der Windows-Workspace liegt unter `portable\workspace-win`.
 - Geklonte Repositories liegen unter `portable\repos`.

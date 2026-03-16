@@ -179,8 +179,8 @@ function Ensure-WslAndUbuntu {
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = Resolve-RepoRoot -ScriptPath $scriptDir
-$bootstrapScript = Join-Path $root 'shared\scripts\bootstrap-portable-eclipse-win11.ps1'
-$setupProjectsScript = Join-Path $root 'shared\scripts\setup-projects.ps1'
+$bootstrapScript = Join-Path $root 'win11-portable-eclipse\scripts\bootstrap-portable-eclipse-win11.ps1'
+$setupProjectsScript = Join-Path $root 'win11-portable-eclipse\scripts\setup-projects.ps1'
 
 if (-not $SkipWslSetup) {
     Ensure-WslAndUbuntu -DistributionName $UbuntuDistribution
