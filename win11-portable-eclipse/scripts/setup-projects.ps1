@@ -290,6 +290,20 @@ function Invoke-GradleEclipse {
     Ensure-GenericProjectFiles -RepoPath $RepoPath
 }
 
+function Ensure-WorkspaceImporterInstalled {
+    param([string]$RepoRootPath)
+
+    $buildScript = Join-Path $RepoRootPath 'win11-portable-eclipse\tools\workspace-importer\build-workspace-importer.ps1'
+    if (-not (Test-Path $buildScript)) {
+        throw "Workspace importer build script not found: $buildScript"
+    }
+
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $buildScript -RepoRoot $RepoRootPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Workspace importer build failed with exit code $LASTEXITCODE"
+    }
+}
+
 function Test-WorkspaceInUse {
     param([string]$WorkspacePath)
 
@@ -467,56 +481,11 @@ function Import-ProjectsIntoEclipse {
         $projectNamesByDir[$projectDir] = Get-EclipseProjectName -ProjectDir $projectDir
     }
 
-    $featuresDir = Join-Path $RepoRootPath 'portable\eclipse-win\features'
-    $pluginsDir = Join-Path $RepoRootPath 'portable\eclipse-win\plugins'
-    $hasCdtFeature = $false
-    $hasCdtHeadlessPlugin = $false
-
-    if (Test-Path $featuresDir) {
-        $hasCdtFeature = [bool](Get-ChildItem -Path $featuresDir -Filter 'org.eclipse.cdt_*' -ErrorAction SilentlyContinue)
-    }
-    if (Test-Path $pluginsDir) {
-        $hasCdtHeadlessPlugin = [bool](Get-ChildItem -Path $pluginsDir -Filter 'org.eclipse.cdt.managedbuilder.core_*' -ErrorAction SilentlyContinue)
-    }
-
-    $useHeadlessImport = ($hasCdtFeature -or $hasCdtHeadlessPlugin)
     $eclipsecExe = Join-Path $RepoRootPath 'portable\eclipse-win\eclipsec.exe'
-    $headlessLauncherExe = if (Test-Path $eclipsecExe) { $eclipsecExe } else { $eclipseExe }
+    $launcherExe = if (Test-Path $eclipsecExe) { $eclipsecExe } else { $eclipseExe }
+    $headlessApp = 'de.geograt.eclipse.workspaceimporter.application'
 
-    if ($useHeadlessImport) {
-        $timeoutSeconds = 40
-        $headlessApp = 'org.eclipse.cdt.managedbuilder.core.headlessbuild'
-
-        foreach ($projectDir in $projectDirs) {
-            $importArgs = @(
-                '-nosplash', '-consoleLog',
-                '-application', $headlessApp,
-                '-data', $WorkspacePath,
-                '-import', $projectDir,
-                '-vmargs',
-                '--add-opens=java.base/java.util=ALL-UNNAMED',
-                '--add-opens=java.base/java.lang=ALL-UNNAMED',
-                '--add-opens=java.base/java.lang.reflect=ALL-UNNAMED',
-                '--add-opens=java.base/java.text=ALL-UNNAMED',
-                '--add-opens=java.desktop/java.awt.font=ALL-UNNAMED'
-            )
-
-            $proc = Start-Process -FilePath $headlessLauncherExe -ArgumentList $importArgs -NoNewWindow -PassThru
-            try {
-                Wait-Process -Id $proc.Id -Timeout $timeoutSeconds -ErrorAction Stop
-            }
-            catch {
-                if (-not $proc.HasExited) {
-                    Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
-                }
-            }
-
-            if (-not (Wait-ForImportedProjects -WorkspacePath $WorkspacePath -ProjectNames @($projectNamesByDir[$projectDir]) -TimeoutSeconds 10 -PollIntervalSeconds 1)) {
-                throw "Headless Eclipse import did not register project '$($projectNamesByDir[$projectDir])' from $projectDir"
-            }
-        }
-        return
-    }
+    Ensure-WorkspaceImporterInstalled -RepoRootPath $RepoRootPath
 
     $batchSize = 20
     $timeoutSeconds = 120
@@ -528,11 +497,11 @@ function Import-ProjectsIntoEclipse {
         $importArgs = @(
             '-nosplash',
             '-consoleLog',
-            '-application', 'org.eclipse.ui.ide.workbench',
+            '-application', $headlessApp,
             '-data', $WorkspacePath
         )
         foreach ($projectDir in $batch) {
-            $importArgs += @('-import', $projectDir)
+            $importArgs += @('-importProject', $projectDir)
         }
         $importArgs += @(
             '-vmargs',
@@ -543,27 +512,26 @@ function Import-ProjectsIntoEclipse {
             '--add-opens=java.desktop/java.awt.font=ALL-UNNAMED'
         )
 
-        $proc = Start-Process -FilePath $eclipseExe -ArgumentList $importArgs -PassThru
-        $importCompleted = $false
-
+        $proc = Start-Process -FilePath $launcherExe -ArgumentList $importArgs -NoNewWindow -PassThru
         try {
-            $importCompleted = Wait-ForImportedProjects -WorkspacePath $WorkspacePath -ProjectNames $expectedProjectNames -TimeoutSeconds $timeoutSeconds
+            Wait-Process -Id $proc.Id -Timeout $timeoutSeconds -ErrorAction Stop
         }
-        finally {
+        catch {
             if (-not $proc.HasExited) {
                 Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
             }
+            throw "Workspace importer timed out in batch starting at index $i"
         }
 
-        if (-not $importCompleted) {
-            Register-ProjectsInWorkspaceMetadata -WorkspacePath $WorkspacePath -ProjectNamesByDir $projectNamesByDir -ProjectDirs $batch
-            $importCompleted = Wait-ForImportedProjects -WorkspacePath $WorkspacePath -ProjectNames $expectedProjectNames -TimeoutSeconds 5 -PollIntervalSeconds 1
+        $importCompleted = Wait-ForImportedProjects -WorkspacePath $WorkspacePath -ProjectNames $expectedProjectNames -TimeoutSeconds 10 -PollIntervalSeconds 1
+        if ((-not $importCompleted) -and ($proc.ExitCode -ne 0)) {
+            throw "Workspace importer failed in batch starting at index $i with exit code $($proc.ExitCode)"
         }
 
         if (-not $importCompleted) {
             $importedProjects = Get-WorkspaceProjectNames -WorkspacePath $WorkspacePath
             $missingProjects = @($expectedProjectNames | Where-Object { $importedProjects -notcontains $_ })
-            throw "Eclipse project import failed in batch starting at index $i. Missing projects after metadata fallback: $($missingProjects -join ', ')"
+            throw "Workspace importer did not register all projects in batch starting at index $i. Missing projects: $($missingProjects -join ', ')"
         }
     }
 }

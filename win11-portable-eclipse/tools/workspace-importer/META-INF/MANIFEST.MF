@@ -1,0 +1,9 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Geograt Workspace Importer
+Bundle-SymbolicName: de.geograt.eclipse.workspaceimporter;singleton:=true
+Bundle-Version: 1.0.0
+Bundle-RequiredExecutionEnvironment: JavaSE-17
+Require-Bundle: org.eclipse.core.runtime,
+ org.eclipse.core.resources,
+ org.eclipse.equinox.app
