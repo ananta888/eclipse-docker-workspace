@@ -239,6 +239,22 @@ function Test-DirectoryIsOptedInProject {
     }
 }
 
+function Get-PortableProjectName {
+    param(
+        [string]$RepoPath,
+        [string]$ProjectDir
+    )
+
+    $repoName = Split-Path -Leaf $RepoPath
+    $relativePath = $ProjectDir.Substring($RepoPath.Length).TrimStart('\', '/')
+    if ([string]::IsNullOrWhiteSpace($relativePath)) {
+        return $repoName
+    }
+
+    $sanitized = $relativePath -replace '[\\/]+', '-'
+    return "$repoName-$sanitized"
+}
+
 function Ensure-GenericProjectFiles {
     param([string]$RepoPath)
 
@@ -253,9 +269,18 @@ function Ensure-GenericProjectFiles {
         }
     }
 
-    $hasProjectFiles = [bool](Get-ChildItem -Path $RepoPath -Recurse -File -Filter ".project" -ErrorAction SilentlyContinue | Select-Object -First 1)
-    if ($hasProjectFiles) {
-        return
+    $buildFiles = Get-ChildItem -Path $RepoPath -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -in @('build.gradle', 'build.gradle.kts') }
+
+    foreach ($buildFile in $buildFiles) {
+        $projectDir = $buildFile.Directory.FullName
+        $projectFile = Join-Path $projectDir ".project"
+        if (Test-Path $projectFile) {
+            continue
+        }
+
+        $projectName = Get-PortableProjectName -RepoPath $RepoPath -ProjectDir $projectDir
+        New-BuildshipProjectFile -ProjectDir $projectDir -ProjectName $projectName -Comment "Gradle subproject"
     }
 
     $topLevelDirs = Get-ChildItem -Path $RepoPath -Directory -ErrorAction SilentlyContinue |
