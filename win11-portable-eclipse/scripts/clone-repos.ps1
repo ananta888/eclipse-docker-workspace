@@ -11,7 +11,7 @@ function Resolve-RepoRoot {
     if ($RepoRoot) {
         return (Resolve-Path $RepoRoot).Path
     }
-    return (Resolve-Path (Join-Path $ScriptPath '..\..')).Path
+    return (Resolve-Path (Join-Path $ScriptPath '..')).Path
 }
 
 function Normalize-RepoName {

@@ -35,10 +35,10 @@ win11-portable-eclipse\install-win11-portable-eclipse.bat ^
 - Falls Windows einen Neustart verlangt, beendet sich das Skript mit Hinweis.
 - Die Setup-Logik liegt lokal unter `win11-portable-eclipse\scripts`.
 - Die Konfiguration liegt lokal unter `win11-portable-eclipse\config`.
-- Eclipse wird unter `portable\eclipse-win` installiert.
+- Eclipse wird unter `win11-portable-eclipse\portable\eclipse-win` installiert.
 - Verwendet wird das EE/Web-Paket, damit die klassischen Web-/XML-Funktionen verfuegbar sind.
-- Der Windows-Workspace liegt unter `portable\workspace-win`.
-- Geklonte Repositories liegen unter `portable\repos`.
+- Der Windows-Workspace liegt unter `win11-portable-eclipse\portable\workspace-win`.
+- Geklonte Repositories liegen unter `win11-portable-eclipse\portable\repos`.
 
 ## Eclipse starten
 

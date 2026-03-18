@@ -16,7 +16,7 @@ function Get-RepoRoot {
     if ($RepoRoot) {
         return (Resolve-Path $RepoRoot).Path
     }
-    return (Resolve-Path (Join-Path $ScriptPath '..\..')).Path
+    return (Resolve-Path (Join-Path $ScriptPath '..')).Path
 }
 
 function Get-LatestP2LogSnippet {
@@ -224,8 +224,8 @@ function Invoke-EclipseWorkbenchImport {
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $resolvedRepoRoot = Get-RepoRoot -ScriptPath $scriptDir
-$packageRoot = Join-Path $resolvedRepoRoot 'win11-portable-eclipse'
-$portableRoot = Join-Path $resolvedRepoRoot 'portable'
+$packageRoot = $resolvedRepoRoot
+$portableRoot = Join-Path $packageRoot 'portable'
 $eclipseHome = Join-Path $portableRoot 'eclipse-win'
 $workspaceDir = Join-Path $portableRoot 'workspace-win'
 $reposDir = Join-Path $portableRoot 'repos'

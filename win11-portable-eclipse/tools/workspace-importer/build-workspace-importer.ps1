@@ -12,7 +12,7 @@ function Get-RepoRoot {
         return (Resolve-Path $RepoRoot).Path
     }
 
-    return (Resolve-Path (Join-Path $ScriptPath '..\..\..')).Path
+    return (Resolve-Path (Join-Path $ScriptPath '..\..')).Path
 }
 
 function Get-SinglePluginJar {
@@ -63,7 +63,7 @@ $stagingDir = Join-Path $buildRoot 'staging'
 $distDir = Join-Path $scriptDir 'dist'
 $manifestFile = Join-Path $scriptDir 'META-INF\MANIFEST.MF'
 $pluginXml = Join-Path $scriptDir 'plugin.xml'
-$jarName = 'de.geograt.eclipse.workspaceimporter_1.0.0.jar'
+$jarName = 'local.win11.portableeclipse.workspaceimporter_1.0.0.jar'
 $jarPath = Join-Path $distDir $jarName
 $javacExe = Resolve-JavaTool -PreferredPath (Join-Path $eclipseHome 'jre\bin\javac.exe') -CommandName 'javac'
 $jarExe = Resolve-JavaTool -PreferredPath (Join-Path $eclipseHome 'jre\bin\jar.exe') -CommandName 'jar'

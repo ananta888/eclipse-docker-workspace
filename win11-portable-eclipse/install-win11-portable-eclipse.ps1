@@ -26,7 +26,7 @@ function Resolve-RepoRoot {
         return (Resolve-Path $RepoRoot).Path
     }
 
-    return (Resolve-Path (Join-Path $ScriptPath '..')).Path
+    return (Resolve-Path $ScriptPath).Path
 }
 
 function Test-IsAdministrator {
@@ -179,8 +179,8 @@ function Ensure-WslAndUbuntu {
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = Resolve-RepoRoot -ScriptPath $scriptDir
-$bootstrapScript = Join-Path $root 'win11-portable-eclipse\scripts\bootstrap-portable-eclipse-win11.ps1'
-$setupProjectsScript = Join-Path $root 'win11-portable-eclipse\scripts\setup-projects.ps1'
+$bootstrapScript = Join-Path $root 'scripts\bootstrap-portable-eclipse-win11.ps1'
+$setupProjectsScript = Join-Path $root 'scripts\setup-projects.ps1'
 
 if (-not $SkipWslSetup) {
     Ensure-WslAndUbuntu -DistributionName $UbuntuDistribution

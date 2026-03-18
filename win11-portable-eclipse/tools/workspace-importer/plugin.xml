@@ -5,7 +5,7 @@
       id="application"
       point="org.eclipse.core.runtime.applications">
     <application>
-      <run class="de.geograt.eclipse.workspaceimporter.WorkspaceImporterApplication"/>
+      <run class="local.win11.portableeclipse.workspaceimporter.WorkspaceImporterApplication"/>
     </application>
   </extension>
 </plugin>

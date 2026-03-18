@@ -1,4 +1,4 @@
-package de.geograt.eclipse.workspaceimporter;
+package local.win11.portableeclipse.workspaceimporter;
 
 import java.io.File;
 import java.util.ArrayList;
