@@ -32,3 +32,4 @@ gradle-app.setting
 /bootstrap.log
 !/portable/start-eclipse-win11.bat
 !/portable/start-vscodium-win11.bat
+/data/
