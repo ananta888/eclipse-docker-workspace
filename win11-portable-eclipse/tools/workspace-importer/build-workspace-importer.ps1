@@ -72,13 +72,17 @@ $compileDeps = @(
     'org.eclipse.core.runtime_',
     'org.eclipse.core.resources_',
     'org.eclipse.equinox.app_',
+    'org.eclipse.buildship.core_',
+    'org.eclipse.jdt.core_',
     'org.eclipse.osgi_',
     'org.eclipse.equinox.common_',
     'org.eclipse.core.jobs_',
     'org.eclipse.core.contenttype_',
     'org.eclipse.core.expressions_',
     'org.eclipse.core.filesystem_',
-    'org.eclipse.equinox.preferences_'
+    'org.eclipse.equinox.preferences_',
+    'org.eclipse.jdt.core.compiler.batch_',
+    'org.eclipse.core.variables_'
 ) | ForEach-Object { Get-SinglePluginJar -PluginsDir $pluginsDir -Prefix $_ }
 
 $classpath = [string]::Join(';', $compileDeps)
